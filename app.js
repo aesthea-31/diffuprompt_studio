@@ -775,8 +775,8 @@ function compilePrompts() {
   });
   
   return {
-    pos: positiveStrings.join(", "),
-    neg: negativeStrings.join(", ")
+    pos: positiveStrings.join(", \n"),
+    neg: negativeStrings.join(", \n")
   };
 }
 
