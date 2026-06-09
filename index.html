@@ -364,6 +364,59 @@
             </div>
           </div>
 
+          <!-- ======= NEW: Sampling Steps + CFG Scale + Sampler ======= -->
+          <div class="mb-4 p-3 rounded-xl bg-slate-950/30 border border-amber-900/20">
+            <p class="text-[10px] font-bold uppercase tracking-wider text-amber-500/70 mb-3 flex items-center gap-1.5">
+              <i class="fa-solid fa-sliders"></i> Diffusion Parameters
+            </p>
+
+            <!-- Sampling Steps -->
+            <div class="mb-3">
+              <div class="flex items-center justify-between mb-1">
+                <label for="input-sampling-steps" class="text-xs font-semibold text-slate-400">Sampling Steps</label>
+                <span id="label-sampling-steps" class="text-xs font-bold text-amber-400 font-mono">20</span>
+              </div>
+              <input type="range"
+                     id="input-sampling-steps"
+                     min="15" max="45" step="1" value="20"
+                     class="custom-slider slider-amber w-full"
+              >
+              <div class="flex justify-between text-[9px] text-slate-600 mt-0.5">
+                <span>15</span><span>45</span>
+              </div>
+            </div>
+
+            <!-- CFG Scale -->
+            <div class="mb-3">
+              <div class="flex items-center justify-between mb-1">
+                <label for="input-cfg-scale" class="text-xs font-semibold text-slate-400">CFG Scale</label>
+                <span id="label-cfg-scale" class="text-xs font-bold text-amber-400 font-mono">7.0</span>
+              </div>
+              <input type="range"
+                     id="input-cfg-scale"
+                     min="3" max="15" step="0.5" value="7"
+                     class="custom-slider slider-amber w-full"
+              >
+              <div class="flex justify-between text-[9px] text-slate-600 mt-0.5">
+                <span>3</span><span>15</span>
+              </div>
+            </div>
+
+            <!-- Sampler -->
+            <div>
+              <label for="select-sampler" class="text-xs font-semibold text-slate-400 mb-1.5 block">Sampler</label>
+              <select id="select-sampler" class="api-select w-full">
+                <option value="euler_a">Euler a</option>
+                <option value="dpm2m" selected>DPM++ 2M</option>
+                <option value="dpm2m_karras">DPM++ 2M Karras</option>
+                <option value="dpm_sde_karras">DPM++ SDE Karras</option>
+                <option value="unipc">UniPC</option>
+                <option value="ddim">DDIM</option>
+              </select>
+            </div>
+          </div>
+          <!-- ======= END: Diffusion Parameters ======= -->
+
           <!-- Prompt Preview (read-only mini) -->
           <div class="mb-4 p-3 rounded-lg bg-slate-950/40 border border-slate-800/60">
             <p class="text-[10px] text-slate-500 mb-1 uppercase font-bold tracking-wider">Will send compiled prompt</p>
@@ -415,6 +468,306 @@
       </div>
       
     </div>
+
+    <!-- =========================================================
+         SEMANTIC DOMINANCE ANALYSIS PANEL (full-width)
+         ========================================================= -->
+    <section id="semantic-analysis-panel" class="mt-8 glass-panel rounded-xl border border-indigo-900/30 shadow-2xl dominance-panel-glow p-6">
+
+      <!-- Panel Header -->
+      <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-500 flex items-center justify-center shadow-lg shadow-indigo-500/25 flex-shrink-0">
+            <i class="fa-solid fa-chart-area text-white text-base"></i>
+          </div>
+          <div>
+            <h2 class="text-sm font-extrabold tracking-tight text-slate-100 flex items-center gap-2">
+              Semantic Dominance &amp; Phase Analysis
+              <span class="text-[9px] uppercase px-2 py-0.5 rounded bg-indigo-950/80 text-indigo-400 border border-indigo-500/30">Live</span>
+            </h2>
+            <p class="text-[10px] text-slate-500 mt-0.5">意味層の位相構造・拡散支配度・描画安定性をリアルタイム解析</p>
+          </div>
+        </div>
+        <button id="btn-run-analysis"
+                class="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-500 hover:from-indigo-500 hover:to-purple-400 text-white rounded-lg transition text-xs font-bold shadow-md shadow-indigo-600/20 flex items-center gap-2">
+          <i class="fa-solid fa-rotate"></i>
+          Re-Analyze
+        </button>
+      </div>
+
+      <!-- EMPTY STATE (shown when no tokens exist) -->
+      <div id="da-empty-state" class="da-empty-state hidden">
+        <i class="fa-solid fa-magnifying-glass-chart"></i>
+        <p>ポジティブ/ネガティブフェーズにトークンを追加すると<br>自動的に解析が始まります。</p>
+      </div>
+
+      <!-- ANALYSIS CONTENT (shown when tokens exist) -->
+      <div id="da-content">
+
+        <!-- Overall Status Banner -->
+        <div id="da-overall-banner" class="overall-status-banner banner-inactive">
+          <i id="da-banner-icon" class="fa-solid fa-circle-question overall-banner-icon"></i>
+          <div>
+            <div id="da-banner-title" class="overall-banner-title">解析待機中</div>
+            <div id="da-banner-desc" class="overall-banner-desc">フェーズにトークンを追加すると解析が開始されます。</div>
+          </div>
+        </div>
+
+        <!-- =====================================================
+             PARAMETER RECOMMENDER (NEW)
+             ===================================================== -->
+        <div id="da-param-recommender" class="param-recommender-panel mb-6">
+          <!-- Panel Header -->
+          <div class="flex flex-wrap items-center gap-4 mb-4">
+            <div class="flex items-center gap-2">
+              <div class="w-7 h-7 rounded-lg bg-gradient-to-tr from-violet-600 to-indigo-500 flex items-center justify-center shadow-md shadow-violet-500/20 flex-shrink-0">
+                <i class="fa-solid fa-sliders text-white text-xs"></i>
+              </div>
+              <div>
+                <div class="text-xs font-extrabold text-slate-200 tracking-tight">パラメータ推奨エンジン
+                  <span class="text-[9px] uppercase px-1.5 py-0.5 rounded bg-violet-950/80 text-violet-400 border border-violet-500/30 ml-1.5">AI Heuristic</span>
+                </div>
+                <div class="text-[10px] text-slate-500">Sampling Stepsから最適なCFG Scale・Sampler・プロンプト調整Tipsを逆算</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Steps Slider (for the Analysis panel) -->
+          <div class="param-rec-steps-row mb-4">
+            <div class="flex items-center justify-between mb-1.5">
+              <label for="da-input-steps" class="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
+                <i class="fa-solid fa-repeat text-violet-400 text-[10px]"></i>
+                Target Sampling Steps
+              </label>
+              <span id="da-label-steps" class="text-sm font-bold text-violet-300 font-mono">20</span>
+            </div>
+            <input type="range"
+                   id="da-input-steps"
+                   min="15" max="45" step="1" value="20"
+                   class="custom-slider slider-violet w-full"
+            >
+            <div class="flex justify-between text-[9px] text-slate-600 mt-1">
+              <span>15 steps (fast)</span><span>45 steps (quality)</span>
+            </div>
+          </div>
+
+          <!-- Recommendation Grid -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+            <!-- Recommended CFG -->
+            <div class="param-rec-card">
+              <div class="param-rec-card-label">
+                <i class="fa-solid fa-gauge-high text-violet-400"></i>
+                推奨 CFG Scale
+              </div>
+              <div class="param-rec-cfg-value" id="da-rec-cfg">—</div>
+              <div class="text-[10px] text-slate-500" id="da-rec-cfg-note">整数値到達には調整が必要</div>
+            </div>
+
+            <!-- Recommended Samplers -->
+            <div class="param-rec-card sm:col-span-2">
+              <div class="param-rec-card-label">
+                <i class="fa-solid fa-route text-indigo-400"></i>
+                推奨 Sampler（複数）
+              </div>
+              <div id="da-rec-samplers" class="flex flex-wrap gap-2 mt-2">
+                <!-- dynamically populated -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Tips -->
+          <div class="param-rec-tips-panel">
+            <div class="flex items-center gap-2 mb-3">
+              <i class="fa-solid fa-lightbulb text-amber-400 text-xs"></i>
+              <span class="text-xs font-bold text-slate-300">CFG整数化のためのプロンプト調整 Tips</span>
+              <span class="text-[9px] text-slate-500 ml-auto" id="da-tips-direction"></span>
+            </div>
+            <ol id="da-rec-tips" class="param-rec-tips-list">
+              <!-- dynamically populated -->
+            </ol>
+          </div>
+        </div>
+        <!-- ===================================================== END PARAM RECOMMENDER --> 
+
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+
+          <!-- LEFT COL: Topology + Dominance Graph -->
+          <div class="xl:col-span-1 flex flex-col gap-5">
+
+            <!-- Topology Summary -->
+            <div class="bg-slate-900/30 rounded-xl p-4 border border-slate-800/60">
+              <div class="da-section-title">
+                <i class="fa-solid fa-diagram-project text-indigo-400"></i>
+                位相的トポロジー分類
+              </div>
+              <div class="topo-summary-row" id="da-topo-summary">
+                <div class="topo-summary-cell topo-cell-constraint">
+                  <div class="topo-summary-cell-label">Constraint</div>
+                  <div class="topo-summary-cell-value" id="da-count-constraint">0</div>
+                  <div class="topo-summary-cell-sub">tokens</div>
+                </div>
+                <div class="topo-summary-cell topo-cell-restraint">
+                  <div class="topo-summary-cell-label">Restraint</div>
+                  <div class="topo-summary-cell-value" id="da-count-restraint">0</div>
+                  <div class="topo-summary-cell-sub">tokens</div>
+                </div>
+                <div class="topo-summary-cell topo-cell-condition">
+                  <div class="topo-summary-cell-label">Condition</div>
+                  <div class="topo-summary-cell-value" id="da-count-condition">0</div>
+                  <div class="topo-summary-cell-sub">tokens</div>
+                </div>
+              </div>
+
+              <!-- Weight aggregate bars -->
+              <div class="flex flex-col gap-3">
+                <div>
+                  <div class="dominance-bar-label">
+                    <span class="dominance-bar-name"><span class="topo-pill topo-pill-constraint">Constraint</span> 累積強度</span>
+                    <span class="dominance-bar-value" id="da-wt-constraint">0.00</span>
+                  </div>
+                  <div class="dominance-bar-track">
+                    <div id="da-bar-constraint" class="dominance-bar-fill dominance-bar-fill-diffusion" style="width:0%"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="dominance-bar-label">
+                    <span class="dominance-bar-name"><span class="topo-pill topo-pill-restraint">Restraint</span> 累積強度</span>
+                    <span class="dominance-bar-value" id="da-wt-restraint">0.00</span>
+                  </div>
+                  <div class="dominance-bar-track">
+                    <div id="da-bar-restraint" class="dominance-bar-fill dominance-bar-fill-structure" style="width:0%"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="dominance-bar-label">
+                    <span class="dominance-bar-name"><span class="topo-pill topo-pill-condition">Condition</span> 累積強度</span>
+                    <span class="dominance-bar-value" id="da-wt-condition">0.00</span>
+                  </div>
+                  <div class="dominance-bar-track">
+                    <div id="da-bar-condition" class="dominance-bar-fill dominance-bar-fill-structure" style="width:0%;background:linear-gradient(90deg,#10b981,#34d399)"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="dominance-bar-label">
+                    <span class="dominance-bar-name" style="color:#f87171">Negative 抑制強度</span>
+                    <span class="dominance-bar-value" id="da-wt-neg">0.00</span>
+                  </div>
+                  <div class="dominance-bar-track">
+                    <div id="da-bar-neg" class="dominance-bar-fill dominance-bar-fill-neg" style="width:0%"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Dominance Split Meter -->
+            <div class="bg-slate-900/30 rounded-xl p-4 border border-slate-800/60">
+              <div class="da-section-title">
+                <i class="fa-solid fa-scale-balanced text-purple-400"></i>
+                拡散支配 vs 構造従属
+              </div>
+              <div class="dominance-split-bar mb-2">
+                <div id="da-split-left" class="dominance-split-left" style="width:50%"></div>
+                <div id="da-split-right" class="dominance-split-right" style="width:50%"></div>
+              </div>
+              <div class="flex justify-between text-[10px] font-semibold mt-1">
+                <span class="text-indigo-400 flex items-center gap-1"><i class="fa-solid fa-wand-magic-sparkles"></i> Diffusion Dominance <span id="da-pct-diffusion" class="font-mono ml-1">50%</span></span>
+                <span class="text-cyan-400 flex items-center gap-1">Structure Subordinate <span id="da-pct-structure" class="font-mono mr-1">50%</span><i class="fa-solid fa-layer-group"></i></span>
+              </div>
+              <p id="da-dominance-desc" class="text-[10px] text-slate-500 mt-3 leading-relaxed"></p>
+            </div>
+
+            <!-- Collapsible: Token Topology Detail -->
+            <div class="bg-slate-900/30 rounded-xl p-4 border border-slate-800/60">
+              <div class="da-collapsible-header" id="da-topo-toggle">
+                <span class="da-section-title mb-0">
+                  <i class="fa-solid fa-list-ul text-slate-500"></i>
+                  トークン位相詳細
+                </span>
+                <i class="fa-solid fa-chevron-down da-toggle-icon"></i>
+              </div>
+              <div class="da-collapsible-body" id="da-topo-detail-body">
+                <div id="da-topo-token-list" class="mt-3 flex flex-col gap-1 max-h-64 overflow-y-auto pr-1"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- RIGHT COL: Assessment Cards (2/3 width) -->
+          <div class="xl:col-span-2 flex flex-col gap-4">
+            <div class="da-section-title">
+              <i class="fa-solid fa-clipboard-check text-emerald-400"></i>
+              描画安定性アセスメント
+            </div>
+
+            <!-- 1. Style / Medium -->
+            <div id="assess-style" class="assessment-card status-inactive">
+              <div class="assessment-icon assessment-icon-inactive" id="assess-style-icon">
+                <i class="fa-solid fa-palette"></i>
+              </div>
+              <div class="assessment-body">
+                <div class="assessment-title">スタイル / 描画媒体層</div>
+                <div class="assessment-subtitle">Daniel-Smith型パステル水彩 · 顔料移動 · 粒状化 · 毛細管沈降</div>
+                <div class="assessment-verdict verdict-inactive" id="assess-style-verdict">—</div>
+              </div>
+              <span class="assessment-status-badge badge-inactive" id="assess-style-badge">N/A</span>
+            </div>
+
+            <!-- 2. Grisaille Tonal Structure -->
+            <div id="assess-grisaille" class="assessment-card status-inactive">
+              <div class="assessment-icon assessment-icon-inactive" id="assess-grisaille-icon">
+                <i class="fa-solid fa-circle-half-stroke"></i>
+              </div>
+              <div class="assessment-body">
+                <div class="assessment-title">グリザイユ塗りトーン構造</div>
+                <div class="assessment-subtitle">Value-field hierarchy · Midtone dominance · Density-coherent tonal continuity</div>
+                <div class="assessment-verdict verdict-inactive" id="assess-grisaille-verdict">—</div>
+              </div>
+              <span class="assessment-status-badge badge-inactive" id="assess-grisaille-badge">N/A</span>
+            </div>
+
+            <!-- 3. Wet-on-Wet Tonal Structure -->
+            <div id="assess-wetonwet" class="assessment-card status-inactive">
+              <div class="assessment-icon assessment-icon-inactive" id="assess-wetonwet-icon">
+                <i class="fa-solid fa-droplet"></i>
+              </div>
+              <div class="assessment-body">
+                <div class="assessment-title">Wet-on-Wet 塗りトーン構造</div>
+                <div class="assessment-subtitle">Capillary deposition · Moisture boundary · Pigment migration restraint · Edge diffusion</div>
+                <div class="assessment-verdict verdict-inactive" id="assess-wetonwet-verdict">—</div>
+              </div>
+              <span class="assessment-status-badge badge-inactive" id="assess-wetonwet-badge">N/A</span>
+            </div>
+
+            <!-- 4. Costume / Garment -->
+            <div id="assess-costume" class="assessment-card status-inactive">
+              <div class="assessment-icon assessment-icon-inactive" id="assess-costume-icon">
+                <i class="fa-solid fa-shirt"></i>
+              </div>
+              <div class="assessment-body">
+                <div class="assessment-title">衣装 / ガーメント構造層</div>
+                <div class="assessment-subtitle">Ebony-embroidered wuxia attire · Sino-gothic · Structural drapery · Garment flow</div>
+                <div class="assessment-verdict verdict-inactive" id="assess-costume-verdict">—</div>
+              </div>
+              <span class="assessment-status-badge badge-inactive" id="assess-costume-badge">N/A</span>
+            </div>
+
+            <!-- 5. Background / Architecture -->
+            <div id="assess-background" class="assessment-card status-inactive">
+              <div class="assessment-icon assessment-icon-inactive" id="assess-background-icon">
+                <i class="fa-solid fa-mountain-city"></i>
+              </div>
+              <div class="assessment-body">
+                <div class="assessment-title">背景 / 建築空間構造層</div>
+                <div class="assessment-subtitle">Sino-gothic temple corridor · Black bamboo columns · Depth-guided spatial layering</div>
+                <div class="assessment-verdict verdict-inactive" id="assess-background-verdict">—</div>
+              </div>
+              <span class="assessment-status-badge badge-inactive" id="assess-background-badge">N/A</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
   </main>
 
   <!-- Lightbox Modal for full-size image preview -->

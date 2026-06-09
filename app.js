@@ -1394,6 +1394,24 @@ function initApiPanel() {
 
   // Update prompt preview whenever output changes
   updateApiPromptPreview();
+
+  // ---- NEW: Sampling Steps slider in API panel ----
+  const stepsSlider = document.getElementById('input-sampling-steps');
+  const stepsLabel  = document.getElementById('label-sampling-steps');
+  if (stepsSlider && stepsLabel) {
+    stepsSlider.addEventListener('input', () => {
+      stepsLabel.textContent = stepsSlider.value;
+    });
+  }
+
+  // ---- NEW: CFG Scale slider in API panel ----
+  const cfgSlider = document.getElementById('input-cfg-scale');
+  const cfgLabel  = document.getElementById('label-cfg-scale');
+  if (cfgSlider && cfgLabel) {
+    cfgSlider.addEventListener('input', () => {
+      cfgLabel.textContent = parseFloat(cfgSlider.value).toFixed(1);
+    });
+  }
 }
 
 // ---------- Keep prompt preview in sync ----------
@@ -2017,3 +2035,771 @@ renderApp = function() {
 document.addEventListener("DOMContentLoaded", () => {
   initConceptLibrary();
 });
+
+
+// ============================================================
+//  SEMANTIC DOMINANCE ANALYSIS MODULE
+// ============================================================
+
+// ---- Topology keyword definitions ----
+// Each entry: { type, keywords[] }
+// type: 'constraint' | 'restraint' | 'condition'
+const TOPO_RULES = [
+  // --- CONSTRAINT (拘束系): structural/boundary/confinement terms ---
+  { type: 'constraint', keywords: [
+    'confined', 'boundary', 'structure', 'hierarchy', 'structural', 'form-defin',
+    'restrained', 'distribution', 'conditioned', 'constraint', 'constrain',
+    'pressure-coherent', 'layered structure', 'density-coherent', 'value-structure',
+    'form continuity', 'identity-preserving', 'identity preservation',
+    'density-stratified', 'particulate aggregation', 'dispersion field restraint',
+    'primary form', 'morphology preserved', 'curvature-driven', 'stereomaticy',
+    'sediment grouping', 'coherence', 'field restraint', 'field-conditioned',
+    'structural drapery', 'garment flow', 'fold hierarchy', 'pressure-coherent layering',
+    'architectural', 'spatial layering', 'structural rhythm', 'bamboo columns',
+    'depth-guided', 'enclosure', 'ornamental variance', 'structural continuity',
+    'form-defining', 'tonal hierarchy', 'value-stratified', 'luminance hierarchy',
+    'stratification', 'stratified', 'density-linked', 'density-gradient',
+    'density differentiation', 'multi-scale', 'spatial hierarchy', 'depth stratification'
+  ]},
+
+  // --- RESTRAINT (抑制・減衰系): attenuation/suppression/moderation terms ---
+  { type: 'restraint', keywords: [
+    'restrain', 'attenuat', 'decay', 'reduction', 'suppression', 'subordinat',
+    'modulated', 'muted', 'restrained distribution', 'restrained ornamental',
+    'restrained particulate', 'restrained dispersion', 'moisture decay',
+    'sedimentation attenuation', 'edge softness', 'density-gradient attenuation',
+    'restrained migration', 'micro tonal variation', 'localized variance',
+    'variance retention', 'low-intensity', 'diffused low-intensity',
+    'passive', 'soft cloth', 'shallow depth', 'mid-key', 'gentle', 'subtle',
+    'pigment strictly confined', 'liquid-paper interaction domain',
+    'chroma constrained', 'chroma subordinated', 'chroma modulated',
+    'grayscale regime', 'value-field dominance', 'global tonal condition',
+    'field-level convergence', 'density-consistent', 'global field cohesion',
+    'overall mixing bias', 'over-mixing', 'homogenization', 'over-articulated',
+    'over-sharpening', 'pixel-level discretization', 'line-trace exaggeration',
+    'manifold flattening', 'normalization preference', 'shape drift'
+  ]},
+
+  // --- CONDITION (条件・相互作用系): field/interaction/emergence terms ---
+  { type: 'condition', keywords: [
+    'condition', 'interaction', 'driven by', 'induced', 'emerging', 'emergence',
+    'governed by', 'governing', 'paper absorption', 'moisture', 'capillary',
+    'pigment deposition', 'pigment migration', 'pigment density', 'pigment behavior',
+    'granular aggregation', 'micro-turbulent', 'differential absorption',
+    'sediment', 'sedimentation', 'particulate', 'accumulation front',
+    'density grouping', 'tonal formation', 'pseudo-luminance', 'luminance bleed',
+    'localized tonal', 'tonal continuity', 'tonal regime', 'mid-frequency',
+    'global convergence', 'field cohesion', 'phase alignment', 'multi-phase',
+    'pigment-density gradients', 'emergent', 'interferen', 'focal point',
+    'edge-darkening', 'localized pigment', 'micro focal', 'edge integration',
+    'depth-stratified', 'field-level', 'paper-bound', 'paper-surface',
+    'heterogeneity', 'absorption heterogeneity', 'field harmony', 'field persistence',
+    'environmental', 'ambient illumination', 'depth attenuation',
+    'curvature-driven architectural', 'background depth', 'particulate-density falloff'
+  ]}
+];
+
+/**
+ * Classify a single token text into topology types.
+ * A token may match multiple types; returns array of matched types.
+ */
+function classifyTokenTopology(text) {
+  const lower = text.toLowerCase();
+  const matched = [];
+  TOPO_RULES.forEach(rule => {
+    if (rule.keywords.some(kw => lower.includes(kw.toLowerCase()))) {
+      matched.push(rule.type);
+    }
+  });
+  // Deduplicate
+  return [...new Set(matched)];
+}
+
+// ---- Assessment keyword definitions ----
+// Each target has: id, required keywords (any match → "detected"), reinforcers (boost stability)
+const ASSESSMENT_TARGETS = [
+  {
+    id: 'style',
+    keywords: [
+      'daniel-smith', 'pastel watercolor', 'pastel water', 'grisaille',
+      'pigment migration', 'granular aggregation', 'pigment granulation', 'coarse pigment',
+      'capillary-mediated', 'capillary', 'pigment deposition', 'granulation',
+      'sediment', 'micro-turbulent', 'moisture-boundary', 'watercolor', 'simulated'
+    ],
+    reinforcers: [
+      'density-coherent', 'value-structure', 'moisture decay', 'pigment strictly confined',
+      'paper absorption', 'particulate aggregation', 'dispersion field restraint'
+    ],
+    negDangers: [
+      'tonal smoothing', 'over-mixing', 'pixel-level', 'manifold flattening',
+      'homogenization', 'grain over-equalization', 'over-articulated'
+    ]
+  },
+  {
+    id: 'grisaille',
+    keywords: [
+      'grisaille', 'value-structure', 'value-stratified', 'midtone', 'mid-key',
+      'tonal continuity', 'tonal hierarchy', 'grayscale', 'global midtone',
+      'mid-frequency tonal', 'density-coherent tonal', 'luminance distribution',
+      'tonal redistribution', 'global value-field', 'tonal field'
+    ],
+    reinforcers: [
+      'global convergence', 'density-coherent particulate', 'form continuity',
+      'identity preservation', 'value-field continuity', 'density-explicit gradient',
+      'tonal phase alignment', 'mid-key tonal', 'density-structured tonal'
+    ],
+    negDangers: [
+      'tonal smoothing', 'overall incline homogenization', 'sectional shape drift',
+      'feature over-sharpening', 'line-based shape', 'pixel-level discretization'
+    ]
+  },
+  {
+    id: 'wetonwet',
+    keywords: [
+      'capillary-mediated', 'moisture-boundary', 'moisture decay', 'moisture',
+      'pigment migration', 'edge definition via moisture', 'pigment strictly confined',
+      'liquid-paper interaction', 'paper-surface-emergent', 'paper absorption',
+      'paper-bound', 'edge-darkening', 'accumulation front', 'micro-turbulent',
+      'wet', 'diffusion', 'pigment density grouping', 'capillary'
+    ],
+    reinforcers: [
+      'differential pigment absorption', 'sediment grouping', 'restrained particulate migration',
+      'depth-aware sedimentation', 'edge softness', 'density-gradient attenuation',
+      'paper-absorption heterogeneity'
+    ],
+    negDangers: [
+      'over-mixing homogenization', 'fluid over-mixing', 'tonal smoothing',
+      'grain over-equalization', 'brushstroke', 'paint bleed'
+    ]
+  },
+  {
+    id: 'costume',
+    keywords: [
+      'ebony-embroidered', 'wuxia attire', 'sino-gothic', 'ornamental embroidery',
+      'structural drapery', 'garment flow', 'fold hierarchy', 'garment structure',
+      'layered garment', 'fabric micro-fold', 'fabric tonal', 'costume',
+      'pressure-coherent layering', 'garment pressure'
+    ],
+    reinforcers: [
+      'primary semantic component', 'identity hierarchy', 'particulate-density grouping',
+      'fabric micro-fold retention', 'value-density interaction', 'particulate phase alignment',
+      'chroma constrained', 'chroma subordinated', 'value-stratified luminance'
+    ],
+    negDangers: [
+      'over-articulated feature', 'feature over-sharpening', 'line-trace exaggeration',
+      'sectional pixel over-exaggeration', 'line-based shape over-dependence'
+    ]
+  },
+  {
+    id: 'background',
+    keywords: [
+      'sino-gothic temple', 'black bamboo', 'bamboo columns', 'temple corridor',
+      'architectural enclosure', 'depth-guided spatial', 'bamboo structural rhythm',
+      'repetitive bamboo', 'quiet architectural', 'background depth',
+      'curvature-driven architectural', 'scene-level environmental', 'background treated'
+    ],
+    reinforcers: [
+      'particulate-density falloff', 'value-stratified spatial', 'restrained particulate dispersion',
+      'field-conditioned alignment', 'depth attenuation', 'density-coherent particulate aggregation',
+      'secondary semantic phase', 'global background variance', 'localized structural retention'
+    ],
+    negDangers: [
+      'sectional shape drift', 'overall incline homogenization', 'manifold-definition normalization',
+      'premature manifold flattening', 'shape definition erosion'
+    ]
+  }
+];
+
+/**
+ * Main analysis function.
+ * Collects all active tokens, classifies them, scores them, and produces results.
+ */
+function runSemanticAnalysis() {
+  // Gather all active tokens
+  const posTokens = [];
+  const negTokens = [];
+
+  state.phases.forEach(phase => {
+    if (!phase.isActive) return;
+    phase.tokens.forEach(tok => {
+      if (!tok.isActive) return;
+      if (phase.isNegative) {
+        negTokens.push({ text: tok.text, weight: parseFloat(tok.weight) });
+      } else {
+        posTokens.push({ text: tok.text, weight: parseFloat(tok.weight) });
+      }
+    });
+  });
+
+  const totalTokens = posTokens.length + negTokens.length;
+
+  // ---- Topology classification on positive tokens ----
+  const classified = { constraint: [], restraint: [], condition: [] };
+
+  posTokens.forEach(tok => {
+    const types = classifyTokenTopology(tok.text);
+    types.forEach(type => {
+      if (classified[type]) {
+        classified[type].push(tok);
+      }
+    });
+  });
+
+  // Weight sums
+  const wtConstraint = classified.constraint.reduce((s, t) => s + t.weight, 0);
+  const wtRestraint  = classified.restraint.reduce((s, t)  => s + t.weight, 0);
+  const wtCondition  = classified.condition.reduce((s, t)  => s + t.weight, 0);
+  const wtNeg        = negTokens.reduce((s, t) => s + (2.0 - t.weight), 0); // inversion: lower weight = stronger suppression
+
+  // ---- Dominance score ----
+  // Diffusion Dominance: driven by Constraint+Condition (style enforcement, particle physics)
+  // Structure Subordinate: driven by Restraint (moderation, attenuation, hierarchical structuring)
+  const diffusionScore  = wtConstraint * 0.5 + wtCondition * 0.5;
+  const structureScore  = wtRestraint * 1.0 + (wtConstraint * 0.5); // constraint also anchors structure
+  const totalDomScore   = diffusionScore + structureScore || 1;
+  const pctDiffusion    = Math.round((diffusionScore / totalDomScore) * 100);
+  const pctStructure    = 100 - pctDiffusion;
+
+  // ---- Per-target assessment ----
+  const assessments = {};
+
+  ASSESSMENT_TARGETS.forEach(target => {
+    // Search across all positive tokens
+    const allPosText = posTokens.map(t => t.text.toLowerCase()).join(' ');
+    const allNegText = negTokens.map(t => t.text.toLowerCase()).join(' ');
+
+    const matchedKws    = target.keywords.filter(kw => allPosText.includes(kw.toLowerCase()));
+    const matchedReinf  = target.reinforcers.filter(kw => allPosText.includes(kw.toLowerCase()));
+    const matchedDanger = target.negDangers.filter(kw => allNegText.includes(kw.toLowerCase()));
+
+    const detected = matchedKws.length > 0;
+
+    // Compute a stability score:
+    // base: (matchedKws / totalKeywords) * 100
+    // bonus: reinforcers each add points
+    // penalty: neg dangers detected in negative prompt reduce score
+    const kwScore    = detected ? (matchedKws.length / target.keywords.length) * 60 : 0;
+    const reinfScore = matchedReinf.length * 5;      // each reinforcer +5
+    const dangerPenalty = matchedDanger.length * 8;  // each danger -8
+
+    const stabilityScore = Math.max(0, Math.min(100, kwScore + reinfScore - dangerPenalty));
+
+    let status = 'inactive';
+    if (!detected) {
+      status = 'inactive';
+    } else if (stabilityScore >= 65) {
+      status = 'stable';
+    } else if (stabilityScore >= 35) {
+      status = 'warning';
+    } else {
+      status = 'critical';
+    }
+
+    assessments[target.id] = {
+      detected,
+      matchedKws,
+      matchedReinf,
+      matchedDanger,
+      stabilityScore: Math.round(stabilityScore),
+      status
+    };
+  });
+
+  return {
+    posTokens,
+    negTokens,
+    totalTokens,
+    classified,
+    wtConstraint,
+    wtRestraint,
+    wtCondition,
+    wtNeg,
+    pctDiffusion,
+    pctStructure,
+    assessments
+  };
+}
+
+/**
+ * Apply analysis results to the DOM.
+ */
+function renderAnalysisPanel() {
+  const result = runSemanticAnalysis();
+
+  // Toggle empty state
+  const isEmpty = result.totalTokens === 0;
+  document.getElementById('da-empty-state').classList.toggle('hidden', !isEmpty);
+  document.getElementById('da-content').style.display = isEmpty ? 'none' : '';
+
+  if (isEmpty) return;
+
+  // ---- Update topology counts & bars ----
+  const maxWt = Math.max(result.wtConstraint, result.wtRestraint, result.wtCondition, result.wtNeg, 1);
+
+  document.getElementById('da-count-constraint').textContent = result.classified.constraint.length;
+  document.getElementById('da-count-restraint').textContent  = result.classified.restraint.length;
+  document.getElementById('da-count-condition').textContent  = result.classified.condition.length;
+
+  document.getElementById('da-wt-constraint').textContent = result.wtConstraint.toFixed(2);
+  document.getElementById('da-wt-restraint').textContent  = result.wtRestraint.toFixed(2);
+  document.getElementById('da-wt-condition').textContent  = result.wtCondition.toFixed(2);
+  document.getElementById('da-wt-neg').textContent        = result.wtNeg.toFixed(2);
+
+  document.getElementById('da-bar-constraint').style.width = `${(result.wtConstraint / maxWt * 100).toFixed(1)}%`;
+  document.getElementById('da-bar-restraint').style.width  = `${(result.wtRestraint  / maxWt * 100).toFixed(1)}%`;
+  document.getElementById('da-bar-condition').style.width  = `${(result.wtCondition  / maxWt * 100).toFixed(1)}%`;
+  document.getElementById('da-bar-neg').style.width        = `${(result.wtNeg        / maxWt * 100).toFixed(1)}%`;
+
+  // ---- Dominance split meter ----
+  document.getElementById('da-split-left').style.width  = `${result.pctDiffusion}%`;
+  document.getElementById('da-split-right').style.width = `${result.pctStructure}%`;
+  document.getElementById('da-pct-diffusion').textContent = `${result.pctDiffusion}%`;
+  document.getElementById('da-pct-structure').textContent  = `${result.pctStructure}%`;
+
+  // Dominance description
+  let domDesc = '';
+  if (result.pctDiffusion > 70) {
+    domDesc = '⚡ Diffusion Dominance 優位。スタイル指令が拡散過程を強く支配しており、確率的テクスチャの生成が期待されますが、構造的な描画対象が拡散場に飲み込まれるリスクがあります。';
+  } else if (result.pctDiffusion > 55) {
+    domDesc = '🎨 やや Diffusion Dominance 寄り。スタイル層と構造層のバランスは取れていますが、スタイル記述の比重が高め。画風の再現は良好と推定されます。';
+  } else if (result.pctStructure > 70) {
+    domDesc = '🏗 Structure Subordinate 優位。構造・階層記述が支配的であり、描画対象の形状保全は強固ですが、スタイル（水彩・グリザイユ等）の発現が抑制される可能性があります。';
+  } else {
+    domDesc = '⚖ Diffusion と Structure のバランスが良好。スタイルと構造の双方が適切に描画に寄与する構成と推定されます。';
+  }
+  document.getElementById('da-dominance-desc').textContent = domDesc;
+
+  // ---- Overall banner ----
+  const allStatuses = Object.values(result.assessments).filter(a => a.detected).map(a => a.status);
+  const hasCritical = allStatuses.includes('critical');
+  const hasWarning  = allStatuses.includes('warning');
+  const hasStable   = allStatuses.includes('stable');
+  const noneDetected = allStatuses.length === 0;
+
+  const banner = document.getElementById('da-overall-banner');
+  const bannerIcon  = document.getElementById('da-banner-icon');
+  const bannerTitle = document.getElementById('da-banner-title');
+  const bannerDesc  = document.getElementById('da-banner-desc');
+
+  // Remove all banner classes first
+  banner.className = 'overall-status-banner';
+  if (noneDetected) {
+    banner.classList.add('banner-inactive');
+    bannerIcon.className = 'fa-solid fa-circle-question overall-banner-icon';
+    bannerTitle.textContent = '意味層未検出';
+    bannerDesc.textContent = 'プロンプト内に既知の意味ターゲット(スタイル・衣装・背景等)が検出されませんでした。トークンを追加してください。';
+  } else if (hasCritical) {
+    banner.classList.add('banner-critical');
+    bannerIcon.className = 'fa-solid fa-triangle-exclamation overall-banner-icon';
+    bannerTitle.textContent = '描画崩壊リスク検出';
+    bannerDesc.textContent = '一部の意味層でスタイル強度が不足または競合しており、意図した描画が崩れる可能性があります。該当カードの指摘を確認してください。';
+  } else if (hasWarning) {
+    banner.classList.add('banner-warning');
+    bannerIcon.className = 'fa-solid fa-circle-exclamation overall-banner-icon';
+    bannerTitle.textContent = '一部に描画安定性の懸念あり';
+    bannerDesc.textContent = '主要な意味層は検出されていますが、強化トークンの不足または抑制リスクが一部で見られます。安定性を高めるには強化トークン(reinforcer)の追加を検討してください。';
+  } else {
+    banner.classList.add('banner-stable');
+    bannerIcon.className = 'fa-solid fa-circle-check overall-banner-icon';
+    bannerTitle.textContent = '描画構造は安定と推定';
+    bannerDesc.textContent = '全ての検出された意味層において、意図した描画対象が正常に出力されると推定されます。トークン構成は良好です。';
+  }
+
+  // ---- Assessment cards ----
+  const assessIds = ['style', 'grisaille', 'wetonwet', 'costume', 'background'];
+  assessIds.forEach(id => {
+    const a = result.assessments[id];
+    applyAssessmentCard(id, a);
+  });
+
+  // ---- Token topology detail list ----
+  const listEl = document.getElementById('da-topo-token-list');
+  listEl.innerHTML = '';
+
+  const allClassified = [
+    ...result.classified.constraint.map(t => ({ tok: t, type: 'constraint' })),
+    ...result.classified.restraint.map(t  => ({ tok: t, type: 'restraint'  })),
+    ...result.classified.condition.map(t  => ({ tok: t, type: 'condition'  }))
+  ];
+
+  // Deduplicate by text+type to avoid repeats
+  const seen = new Set();
+  allClassified.forEach(({ tok, type }) => {
+    const key = tok.text + '|' + type;
+    if (seen.has(key)) return;
+    seen.add(key);
+
+    const pillClass = `topo-pill topo-pill-${type}`;
+    const row = document.createElement('div');
+    row.className = 'topo-token-row';
+    row.innerHTML = `
+      <span class="${pillClass}">${type}</span>
+      <span class="topo-token-text">${tok.text}</span>
+      <span class="topo-token-weight">${tok.weight.toFixed(2)}x</span>
+    `;
+    listEl.appendChild(row);
+  });
+
+  if (allClassified.length === 0) {
+    listEl.innerHTML = '<p class="text-xs text-slate-600 text-center py-3">分類可能なトークンが見つかりませんでした。</p>';
+  }
+
+  // ---- Update Parameter Recommender ----
+  renderParamRecommender();
+}
+
+/**
+ * Apply results to a single assessment card in the DOM.
+ */
+function applyAssessmentCard(id, assessment) {
+  const card    = document.getElementById(`assess-${id}`);
+  const iconEl  = document.getElementById(`assess-${id}-icon`);
+  const verdict = document.getElementById(`assess-${id}-verdict`);
+  const badge   = document.getElementById(`assess-${id}-badge`);
+
+  if (!card) return;
+
+  // Reset classes
+  card.className    = 'assessment-card';
+  iconEl.className  = 'assessment-icon';
+  verdict.className = 'assessment-verdict';
+
+  const s = assessment.status;
+  card.classList.add(`status-${s}`);
+  iconEl.classList.add(`assessment-icon-${s}`);
+  verdict.classList.add(`verdict-${s}`);
+  badge.className = `assessment-status-badge badge-${s}`;
+
+  const statusLabels = { stable: '安定', warning: '注意', critical: '崩壊リスク', inactive: 'N/A' };
+  badge.textContent = statusLabels[s] || 'N/A';
+
+  if (!assessment.detected) {
+    verdict.innerHTML = '<em class="text-slate-600">このカテゴリのトークンが検出されませんでした。</em>';
+    return;
+  }
+
+  const scoreBar = `<span class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-800/60 border border-slate-700/50">${assessment.stabilityScore}/100</span>`;
+
+  let verdictHtml = `安定性スコア: ${scoreBar}<br>`;
+  verdictHtml += `検出キーワード: <strong>${assessment.matchedKws.slice(0, 4).join(', ')}${assessment.matchedKws.length > 4 ? ` 他${assessment.matchedKws.length-4}件` : ''}</strong>。`;
+
+  if (assessment.matchedReinf.length > 0) {
+    verdictHtml += ` 強化トークン <strong>${assessment.matchedReinf.length}件</strong> が安定性を補強しています。`;
+  } else {
+    verdictHtml += ` 強化トークンが未検出のため、構造安定性が低下する可能性があります。`;
+  }
+
+  if (assessment.matchedDanger.length > 0) {
+    verdictHtml += ` <strong>⚠ ネガティブ側で危険な抑制 ${assessment.matchedDanger.length}件</strong>（${assessment.matchedDanger.slice(0,2).join(', ')}）が検出されました。この記述はスタイル層を意図せず抑制する可能性があります。`;
+  }
+
+  if (s === 'stable') {
+    verdictHtml += ' → <strong>正常な描画出力が推定されます。</strong>';
+  } else if (s === 'warning') {
+    verdictHtml += ' → <strong>描画は概ね成立しますが、強化・調整を推奨します。</strong>';
+  } else if (s === 'critical') {
+    verdictHtml += ' → <strong>意図した描画が成立しない可能性があります。キーワード補強を強く推奨します。</strong>';
+  }
+
+  verdict.innerHTML = verdictHtml;
+}
+
+// ---- Wire up collapsible token detail ----
+function initAnalysisPanel() {
+  // Collapsible toggle
+  const toggleBtn  = document.getElementById('da-topo-toggle');
+  const toggleBody = document.getElementById('da-topo-detail-body');
+  if (toggleBtn && toggleBody) {
+    toggleBtn.addEventListener('click', () => {
+      const isOpen = toggleBody.classList.contains('open');
+      toggleBody.classList.toggle('open', !isOpen);
+      toggleBtn.classList.toggle('open', !isOpen);
+    });
+  }
+
+  // Manual re-analyze button
+  const reBtn = document.getElementById('btn-run-analysis');
+  if (reBtn) {
+    reBtn.addEventListener('click', () => {
+      renderAnalysisPanel();
+      showToast('Semantic Dominance Analysis を実行しました。');
+    });
+  }
+
+  // ---- NEW: Target Steps slider in Analysis panel ----
+  const daStepsSlider = document.getElementById('da-input-steps');
+  const daStepsLabel  = document.getElementById('da-label-steps');
+  if (daStepsSlider && daStepsLabel) {
+    daStepsSlider.addEventListener('input', () => {
+      daStepsLabel.textContent = daStepsSlider.value;
+      renderParamRecommender(daStepsSlider.value);
+    });
+  }
+
+  // Initial render
+  renderAnalysisPanel();
+}
+
+// ---- Hook into existing updateOutput so analysis refreshes live ----
+const _origUpdateOutputForDA = updateOutput;
+updateOutput = function() {
+  _origUpdateOutputForDA();
+  renderAnalysisPanel();
+};
+
+// Boot after DOM ready
+document.addEventListener('DOMContentLoaded', () => {
+  initAnalysisPanel();
+});
+
+
+// ============================================================
+//  PARAMETER RECOMMENDATION ENGINE
+// ============================================================
+
+/**
+ * Sampler metadata: which conditions each sampler is best suited for.
+ * steps_range: [min, max], complexity: 'low' | 'medium' | 'high'
+ */
+const SAMPLER_PROFILES = [
+  {
+    id: 'euler_a',
+    label: 'Euler a',
+    stepsMin: 15, stepsMax: 30,
+    cfgMin: 5, cfgMax: 9,
+    note: '低ステップ・速度優先、ランダム性やや高め'
+  },
+  {
+    id: 'dpm2m',
+    label: 'DPM++ 2M',
+    stepsMin: 20, stepsMax: 45,
+    cfgMin: 6, cfgMax: 12,
+    note: '汎用高品質・高ステップ向け'
+  },
+  {
+    id: 'dpm2m_karras',
+    label: 'DPM++ 2M Karras',
+    stepsMin: 20, stepsMax: 40,
+    cfgMin: 5, cfgMax: 10,
+    note: 'Karras スケジューラで安定収束'
+  },
+  {
+    id: 'dpm_sde_karras',
+    label: 'DPM++ SDE Karras',
+    stepsMin: 15, stepsMax: 30,
+    cfgMin: 4, cfgMax: 8,
+    note: '低CFGで有機的テクスチャを生成、水彩向き'
+  },
+  {
+    id: 'unipc',
+    label: 'UniPC',
+    stepsMin: 20, stepsMax: 35,
+    cfgMin: 6, cfgMax: 11,
+    note: '少ステップでもコヒーレント、構造保全に強い'
+  },
+  {
+    id: 'ddim',
+    label: 'DDIM',
+    stepsMin: 25, stepsMax: 45,
+    cfgMin: 7, cfgMax: 13,
+    note: '確定的サンプリング、再現性重視'
+  }
+];
+
+/**
+ * computeParamRecommendation(steps, analysisResult)
+ *
+ * Based on the user's desired sampling steps and the semantic analysis,
+ * calculate the recommended CFG scale and suitable samplers.
+ *
+ * @param {number} steps  – target Sampling Steps (15-45)
+ * @param {object} result – return value of runSemanticAnalysis()
+ * @returns {{ cfg: number, samplers: string[], tips: string[], direction: string }}
+ */
+function computeParamRecommendation(steps, result) {
+  const s = parseInt(steps, 10);
+
+  // ---- Base CFG from steps ----
+  // Lower steps → need slightly higher CFG to converge
+  // Higher steps → can afford lower CFG
+  let baseCfg = 7.0;
+  if (s <= 18)       baseCfg = 8.5;
+  else if (s <= 22)  baseCfg = 7.5;
+  else if (s <= 28)  baseCfg = 7.0;
+  else if (s <= 35)  baseCfg = 6.5;
+  else               baseCfg = 6.0;
+
+  // ---- Prompt complexity adjustments ----
+  const totalPosTokens = result.posTokens.length;
+  const totalNegTokens = result.negTokens.length;
+
+  // Many positive tokens (dense prompt) → raise CFG to enforce fidelity
+  if (totalPosTokens > 60) baseCfg += 0.7;
+  else if (totalPosTokens > 40) baseCfg += 0.4;
+  else if (totalPosTokens < 15) baseCfg -= 0.3;
+
+  // Many restraint tokens → very structured prompt, lower CFG is safer
+  if (result.wtRestraint > 30) baseCfg -= 0.8;
+  else if (result.wtRestraint > 18) baseCfg -= 0.4;
+
+  // High constraint weight → strong structural enforcement → mild CFG boost
+  if (result.wtConstraint > 30) baseCfg += 0.4;
+
+  // High negative weight → tight suppression → ease CFG to avoid over-saturation
+  if (result.wtNeg > 15) baseCfg -= 0.5;
+
+  // Diffusion dominant (style-heavy) → slight CFG raise to maintain coherence
+  if (result.pctDiffusion > 65) baseCfg += 0.5;
+  else if (result.pctStructure > 70) baseCfg -= 0.3;
+
+  // Clamp
+  baseCfg = Math.max(3.0, Math.min(15.0, baseCfg));
+  const rawCfg = Math.round(baseCfg * 10) / 10; // 1 decimal precision
+
+  // ---- Sampler selection ----
+  // Primary: samplers whose steps range covers our target steps AND cfg range covers rawCfg
+  const primary = SAMPLER_PROFILES.filter(sp =>
+    s >= sp.stepsMin && s <= sp.stepsMax &&
+    rawCfg >= sp.cfgMin && rawCfg <= sp.cfgMax
+  ).map(sp => sp.label);
+
+  // Fallback: samplers whose steps range covers s (CFG constraint relaxed)
+  const fallback = SAMPLER_PROFILES.filter(sp =>
+    s >= sp.stepsMin && s <= sp.stepsMax &&
+    !primary.includes(sp.label)
+  ).map(sp => sp.label);
+
+  const samplers = [...primary, ...fallback].slice(0, 4);
+  if (samplers.length === 0) samplers.push('DPM++ 2M Karras', 'UniPC'); // safe default
+
+  // ---- Tips for integer CFG ----
+  const nearestInt = Math.round(rawCfg);
+  const diff = nearestInt - rawCfg; // positive = need to go UP, negative = need to go DOWN
+  const direction = diff > 0 ? 'up' : diff < 0 ? 'down' : 'integer';
+
+  const tips = [];
+
+  if (direction === 'integer') {
+    // Already integer — celebration tips
+    tips.push(`<strong>現在の構成は既に整数CFG (${nearestInt}) に最適化されています。</strong>この状態を基準に微調整してみてください。`);
+    tips.push(`<strong>Samplerの種類を変えて</strong>同じCFGで表現の差を確認することが、スタイル安定性の比較研究として有効です。`);
+    tips.push(`<strong>Seedをランダムに複数回試し</strong>現在のトークン構成がCFG ${nearestInt} でどれほど安定した出力を生むかを確認してください。`);
+    tips.push(`<strong>ネガティブプロンプトの重みを±0.01ずつ微調整</strong>し、表現的アーティファクト（マニフォールド崩壊など）が減少するかを観察してください。`);
+    tips.push(`<strong>強化トークン（reinforcer）を1〜2件追加</strong>することで、さらなる描画安定性の向上が期待できます。`);
+  } else if (direction === 'up') {
+    // Need to raise effective CFG (i.e., make prompt simpler/reduce negative suppression)
+    const delta = Math.abs(diff).toFixed(1);
+    tips.push(`<strong>CFGを約 ${delta} 上げる</strong>ために、ポジティブプロンプトの密度を下げてください。過剰なConstraintトークンを2〜3件削除または重みを1.00に下げることが効果的です。`);
+    tips.push(`<strong>ネガティブプロンプトの抑制強度を緩和</strong>するために、ネガティブ側トークンの重みを0.95→0.90に下げてみてください。これにより拡散の自由度が上がり、CFGの実効値が上昇します。`);
+    tips.push(`<strong>Conditionトークン（moisture・capillary・pigment deposition系）を増量</strong>してください。拡散の収束特性が強まりCFGが実質的に上昇します。`);
+    if (result.wtRestraint > 20) {
+      tips.push(`<strong>Restraintトークン（attenuation・subordinated・muted系）が過剰</strong>です（累積強度${result.wtRestraint.toFixed(1)}）。3件程度削除またはweight 0.98→1.00に変更するとCFGバランスが改善されます。`);
+    } else {
+      tips.push(`<strong>グリザイユ・水彩スタイルの「条件トークン」を1〜2件強化</strong>（weight 1.04→1.06程度）することで、スタイルの拡散支配力を向上させCFGを上げやすくなります。`);
+    }
+    tips.push(`<strong>Sampling Stepsを2〜3ステップ下げる</strong>（現在${s}→${Math.max(15, s-2)}程度）ことで、同CFG値でより鮮明な輪郭と強い発色が得られ、実質的にCFG感度を上げた効果を得られます。`);
+    if (totalNegTokens > 12) {
+      tips.push(`<strong>ネガティブプロンプトのトークン数が多い</strong>（${totalNegTokens}件）。意味的に重複する抑制語（例: 複数の「over-mixing」系）を統合・削除して5〜8件程度に絞るとCFGの整数化に近づきます。`);
+    }
+    tips.push(`<strong>衣装・背景フェーズのConstraintトークン重みを0.02ずつ上げて</strong>みてください。各構造フェーズの強化によりプロンプト全体のConstraint密度が増し、CFGが自然に上がります。`);
+  } else {
+    // Need to lower effective CFG (make prompt stronger, denser, add more restrictions)
+    const delta = Math.abs(diff).toFixed(1);
+    tips.push(`<strong>CFGを約 ${delta} 下げる</strong>ために、ポジティブプロンプトのConstraintトークンを追加してください。特にスタイル固定用の「density-stratified」「particulate-density」系を1〜2件追加することで、拡散が自律的に収束しCFG実効値が下がります。`);
+    tips.push(`<strong>ネガティブプロンプトの抑制強度を高める</strong>ために、重みを0.94→0.92に下げてください。抑制力の増大により拡散の自由度が下がり、低CFGで安定出力が得られます。`);
+    tips.push(`<strong>Restraintトークン（subordinated・constrained・modulated系）を2〜3件追加</strong>してください。構造の縛りが強まり、低いCFGでも形状崩壊が起きにくくなります。`);
+    if (result.pctDiffusion > 55) {
+      tips.push(`<strong>現在Diffusion Dominance ${result.pctDiffusion}%</strong>と高めです。ポジティブフェーズにStructure系トークン（form continuity・depth-stratified等）を追加するとDiffusion支配を抑えCFGを下げやすくなります。`);
+    } else {
+      tips.push(`<strong>各フェーズの先頭トークン（最も拡散に影響する）の重みを0.02下げ</strong>てみてください。プロンプト全体の拡散強度が緩み、推奨CFGが整数値に近づきます。`);
+    }
+    tips.push(`<strong>Sampling Stepsを2〜3増やす</strong>（現在${s}→${Math.min(45, s+2)}程度）ことで、拡散プロセスがより細かく分解され同じプロンプト強度でも低CFGで安定した出力が得られます。`);
+    if (totalPosTokens > 50) {
+      tips.push(`<strong>ポジティブトークン数が多い</strong>（${totalPosTokens}件）。意味的に近接するトークンを統合・削除して35〜45件程度に絞ることで、CFGの整数値への調整が容易になります。`);
+    }
+    tips.push(`<strong>グリザイユ・トーン系フェーズのRestraintトークンを強化</strong>（weight 1.04→1.06）して、トーン構造の縛りを強くしてください。中間調が安定することで低CFGでも出力が崩壊しにくくなります。`);
+  }
+
+  return {
+    cfg: rawCfg,
+    nearestInt,
+    direction,
+    samplers,
+    primarySamplers: primary,
+    tips
+  };
+}
+
+/**
+ * Read current steps value from the Analysis panel slider,
+ * run the recommendation engine, and update the DOM.
+ * @param {number|string} [stepsOverride] – if passed, use this instead of reading the slider
+ */
+function renderParamRecommender(stepsOverride) {
+  // Read steps from the analysis-panel slider (or override)
+  const stepsEl = document.getElementById('da-input-steps');
+  const steps   = stepsOverride !== undefined ? parseInt(stepsOverride, 10)
+                                              : (stepsEl ? parseInt(stepsEl.value, 10) : 20);
+
+  // Run current semantic analysis to feed into the engine
+  const result = runSemanticAnalysis();
+
+  // If no tokens exist, show a minimal placeholder and bail
+  const cfgEl      = document.getElementById('da-rec-cfg');
+  const cfgNoteEl  = document.getElementById('da-rec-cfg-note');
+  const samplersEl = document.getElementById('da-rec-samplers');
+  const tipsEl     = document.getElementById('da-rec-tips');
+  const dirEl      = document.getElementById('da-tips-direction');
+
+  if (!cfgEl) return;
+
+  if (result.totalTokens === 0) {
+    cfgEl.textContent         = '—';
+    cfgEl.className           = 'param-rec-cfg-value';
+    cfgNoteEl.textContent     = 'トークンを追加すると解析が開始されます';
+    samplersEl.innerHTML      = '<span class="param-rec-tips-empty">—</span>';
+    tipsEl.innerHTML          = '<p class="param-rec-tips-empty">プロンプトを作成後に Tips が表示されます。</p>';
+    if (dirEl) dirEl.textContent = '';
+    return;
+  }
+
+  const rec = computeParamRecommendation(steps, result);
+
+  // ---- CFG Value display ----
+  cfgEl.textContent = rec.cfg.toFixed(1);
+  if (rec.direction === 'integer') {
+    cfgEl.className       = 'param-rec-cfg-value is-integer';
+    cfgNoteEl.textContent = `✓ 既に整数値 (${rec.nearestInt}) に到達しています！`;
+  } else {
+    cfgEl.className = 'param-rec-cfg-value';
+    const diff = Math.abs(rec.nearestInt - rec.cfg).toFixed(1);
+    const intDir = rec.direction === 'up' ? '上' : '下';
+    cfgNoteEl.textContent = `整数値 ${rec.nearestInt} まで約 ${diff} ${intDir}げる調整が推奨されます`;
+  }
+
+  // ---- Sampler badges ----
+  samplersEl.innerHTML = rec.samplers.map((name, i) => {
+    const isPrimary = rec.primarySamplers.includes(name);
+    return `<span class="sampler-badge ${isPrimary ? 'is-primary' : ''}">${isPrimary ? '★ ' : ''}${name}</span>`;
+  }).join('');
+
+  // ---- Direction label ----
+  if (dirEl) {
+    if (rec.direction === 'integer') {
+      dirEl.textContent = '✓ 整数CFG達成済み';
+      dirEl.style.color = '#34d399';
+    } else if (rec.direction === 'up') {
+      dirEl.textContent = `↑ CFGをさらに上げるための調整`;
+      dirEl.style.color = '#6ee7b7';
+    } else {
+      dirEl.textContent = `↓ CFGを下げるための調整`;
+      dirEl.style.color = '#fda4af';
+    }
+  }
+
+  // ---- Tips ----
+  tipsEl.innerHTML = rec.tips.map((tip, i) => {
+    const cls = rec.direction === 'up' ? 'tip-up' : rec.direction === 'down' ? 'tip-down' : '';
+    return `<li class="${cls}" style="animation-delay:${i * 0.05}s">${tip}</li>`;
+  }).join('');
+}
