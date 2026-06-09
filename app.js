@@ -2059,7 +2059,9 @@ const TOPO_RULES = [
     'depth-guided', 'enclosure', 'ornamental variance', 'structural continuity',
     'form-defining', 'tonal hierarchy', 'value-stratified', 'luminance hierarchy',
     'stratification', 'stratified', 'density-linked', 'density-gradient',
-    'density differentiation', 'multi-scale', 'spatial hierarchy', 'depth stratification'
+    'density differentiation', 'multi-scale', 'spatial hierarchy', 'depth stratification',
+    // Added general constraint keywords
+    'sharp focus', 'detailed', 'highly detailed', 'anatomy', 'eyes', 'face', 'body', 'pose', 'character', 'intricate'
   ]},
 
   // --- RESTRAINT (抑制・減衰系): attenuation/suppression/moderation terms ---
@@ -2077,7 +2079,9 @@ const TOPO_RULES = [
     'field-level convergence', 'density-consistent', 'global field cohesion',
     'overall mixing bias', 'over-mixing', 'homogenization', 'over-articulated',
     'over-sharpening', 'pixel-level discretization', 'line-trace exaggeration',
-    'manifold flattening', 'normalization preference', 'shape drift'
+    'manifold flattening', 'normalization preference', 'shape drift',
+    // Added general restraint keywords
+    'soft lighting', 'smooth', 'blurred background', 'depth of field', 'desaturated', 'pastel', 'dim', 'subdued'
   ]},
 
   // --- CONDITION (条件・相互作用系): field/interaction/emergence terms ---
@@ -2095,7 +2099,9 @@ const TOPO_RULES = [
     'depth-stratified', 'field-level', 'paper-bound', 'paper-surface',
     'heterogeneity', 'absorption heterogeneity', 'field harmony', 'field persistence',
     'environmental', 'ambient illumination', 'depth attenuation',
-    'curvature-driven architectural', 'background depth', 'particulate-density falloff'
+    'curvature-driven architectural', 'background depth', 'particulate-density falloff',
+    // Added general condition keywords
+    'lighting', 'illumination', 'fog', 'atmosphere', 'raytracing', 'cinematic', 'volumetric', 'ambient', 'environment', 'bloom'
   ]}
 ];
 
@@ -2124,15 +2130,19 @@ const ASSESSMENT_TARGETS = [
       'daniel-smith', 'pastel watercolor', 'pastel water', 'grisaille',
       'pigment migration', 'granular aggregation', 'pigment granulation', 'coarse pigment',
       'capillary-mediated', 'capillary', 'pigment deposition', 'granulation',
-      'sediment', 'micro-turbulent', 'moisture-boundary', 'watercolor', 'simulated'
+      'sediment', 'micro-turbulent', 'moisture-boundary', 'watercolor', 'simulated',
+      // NEW additions:
+      'art', 'painting', 'drawing', 'sketch', 'oil', 'acrylic', 'illustration', 'concept art', 'rendering', 'style', 'medium', 'digital', 'masterpiece', 'aesthetics', 'cyberpunk', 'anime'
     ],
     reinforcers: [
       'density-coherent', 'value-structure', 'moisture decay', 'pigment strictly confined',
-      'paper absorption', 'particulate aggregation', 'dispersion field restraint'
+      'paper absorption', 'particulate aggregation', 'dispersion field restraint',
+      'highly detailed', 'sharp focus', 'intricate'
     ],
     negDangers: [
       'tonal smoothing', 'over-mixing', 'pixel-level', 'manifold flattening',
-      'homogenization', 'grain over-equalization', 'over-articulated'
+      'homogenization', 'grain over-equalization', 'over-articulated',
+      'low quality', 'jpeg artifacts', 'blurry', 'bad art'
     ]
   },
   {
@@ -2141,16 +2151,19 @@ const ASSESSMENT_TARGETS = [
       'grisaille', 'value-structure', 'value-stratified', 'midtone', 'mid-key',
       'tonal continuity', 'tonal hierarchy', 'grayscale', 'global midtone',
       'mid-frequency tonal', 'density-coherent tonal', 'luminance distribution',
-      'tonal redistribution', 'global value-field', 'tonal field'
+      'tonal redistribution', 'global value-field', 'tonal field',
+      'monochrome', 'black and white'
     ],
     reinforcers: [
       'global convergence', 'density-coherent particulate', 'form continuity',
       'identity preservation', 'value-field continuity', 'density-explicit gradient',
-      'tonal phase alignment', 'mid-key tonal', 'density-structured tonal'
+      'tonal phase alignment', 'mid-key tonal', 'density-structured tonal',
+      'contrast', 'cinematic lighting'
     ],
     negDangers: [
       'tonal smoothing', 'overall incline homogenization', 'sectional shape drift',
-      'feature over-sharpening', 'line-based shape', 'pixel-level discretization'
+      'feature over-sharpening', 'line-based shape', 'pixel-level discretization',
+      'colorful', 'flat colors'
     ]
   },
   {
@@ -2160,16 +2173,19 @@ const ASSESSMENT_TARGETS = [
       'pigment migration', 'edge definition via moisture', 'pigment strictly confined',
       'liquid-paper interaction', 'paper-surface-emergent', 'paper absorption',
       'paper-bound', 'edge-darkening', 'accumulation front', 'micro-turbulent',
-      'wet', 'diffusion', 'pigment density grouping', 'capillary'
+      'wet', 'diffusion', 'pigment density grouping', 'capillary',
+      'fluid', 'ink wash'
     ],
     reinforcers: [
       'differential pigment absorption', 'sediment grouping', 'restrained particulate migration',
       'depth-aware sedimentation', 'edge softness', 'density-gradient attenuation',
-      'paper-absorption heterogeneity'
+      'paper-absorption heterogeneity',
+      'soft edges', 'blend'
     ],
     negDangers: [
       'over-mixing homogenization', 'fluid over-mixing', 'tonal smoothing',
-      'grain over-equalization', 'brushstroke', 'paint bleed'
+      'grain over-equalization', 'brushstroke', 'paint bleed',
+      'sharp edges', 'hard lines'
     ]
   },
   {
@@ -2178,16 +2194,20 @@ const ASSESSMENT_TARGETS = [
       'ebony-embroidered', 'wuxia attire', 'sino-gothic', 'ornamental embroidery',
       'structural drapery', 'garment flow', 'fold hierarchy', 'garment structure',
       'layered garment', 'fabric micro-fold', 'fabric tonal', 'costume',
-      'pressure-coherent layering', 'garment pressure'
+      'pressure-coherent layering', 'garment pressure',
+      // NEW additions:
+      'armor', 'clothes', 'clothing', 'attire', 'suit', 'dress', 'jacket', 'shirt', 'garment', 'outfit', 'wear', 'uniform', 'robe', 'fabric'
     ],
     reinforcers: [
       'primary semantic component', 'identity hierarchy', 'particulate-density grouping',
       'fabric micro-fold retention', 'value-density interaction', 'particulate phase alignment',
-      'chroma constrained', 'chroma subordinated', 'value-stratified luminance'
+      'chroma constrained', 'chroma subordinated', 'value-stratified luminance',
+      'detailed texture', 'intricate design'
     ],
     negDangers: [
       'over-articulated feature', 'feature over-sharpening', 'line-trace exaggeration',
-      'sectional pixel over-exaggeration', 'line-based shape over-dependence'
+      'sectional pixel over-exaggeration', 'line-based shape over-dependence',
+      'deformed anatomy', 'bad proportions'
     ]
   },
   {
@@ -2196,16 +2216,20 @@ const ASSESSMENT_TARGETS = [
       'sino-gothic temple', 'black bamboo', 'bamboo columns', 'temple corridor',
       'architectural enclosure', 'depth-guided spatial', 'bamboo structural rhythm',
       'repetitive bamboo', 'quiet architectural', 'background depth',
-      'curvature-driven architectural', 'scene-level environmental', 'background treated'
+      'curvature-driven architectural', 'scene-level environmental', 'background treated',
+      // NEW additions:
+      'city', 'street', 'building', 'background', 'landscape', 'interior', 'room', 'architecture', 'scene', 'environment', 'space', 'sky', 'forest', 'nature', 'scenery', 'outdoors', 'indoors'
     ],
     reinforcers: [
       'particulate-density falloff', 'value-stratified spatial', 'restrained particulate dispersion',
       'field-conditioned alignment', 'depth attenuation', 'density-coherent particulate aggregation',
-      'secondary semantic phase', 'global background variance', 'localized structural retention'
+      'secondary semantic phase', 'global background variance', 'localized structural retention',
+      'volumetric fog', 'global illumination', 'depth of field'
     ],
     negDangers: [
       'sectional shape drift', 'overall incline homogenization', 'manifold-definition normalization',
-      'premature manifold flattening', 'shape definition erosion'
+      'premature manifold flattening', 'shape definition erosion',
+      'flat background', 'white background'
     ]
   }
 ];
