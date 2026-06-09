@@ -440,38 +440,28 @@ function setupGlobalEvents() {
       return;
     }
     
-    const parsed = parseRawPrompt(text);
+    const parsedPhases = parseRawPrompt(text);
     
-    if (parsed.posTokens.length === 0 && parsed.negTokens.length === 0) {
+    if (parsedPhases.length === 0) {
       showToast("Could not extract any tokens.", "error");
       return;
     }
     
-    // Create new phases for imported tokens
-    if (parsed.posTokens.length > 0) {
+    let tokenCount = 0;
+    parsedPhases.forEach((phase, index) => {
       state.phases.push({
-        id: "phase_imported_pos_" + Date.now(),
-        name: "Imported Positive",
+        id: "phase_imported_" + Date.now() + "_" + index,
+        name: phase.name,
         isActive: true,
-        isNegative: false,
-        color: "purple",
-        tokens: parsed.posTokens
+        isNegative: phase.isNegative,
+        color: phase.isNegative ? "rose" : "purple",
+        tokens: phase.tokens
       });
-    }
-    
-    if (parsed.negTokens.length > 0) {
-      state.phases.push({
-        id: "phase_imported_neg_" + Date.now(),
-        name: "Imported Negative",
-        isActive: true,
-        isNegative: true,
-        color: "rose",
-        tokens: parsed.negTokens
-      });
-    }
+      tokenCount += phase.tokens.length;
+    });
     
     inputArea.value = "";
-    showToast(`Imported ${parsed.posTokens.length + parsed.negTokens.length} tokens!`);
+    showToast(`Imported ${tokenCount} tokens into ${parsedPhases.length} phases!`);
     renderApp();
   });
 
@@ -657,24 +647,12 @@ function copyToClipboard(text, successMsg) {
 
 // Parse Raw Prompt
 function parseRawPrompt(rawText) {
-  let positivePart = rawText;
-  let negativePart = "";
+  const lines = rawText.split('\n');
+  const phases = [];
   
-  // Check for common negative prompt splitters
-  const negIndicators = [
-    /Negative prompt:\s*([\s\S]+)/i,
-    /--n\s+([\s\S]+)/i,
-    /--no\s+([\s\S]+)/i
-  ];
-  
-  for (let indicator of negIndicators) {
-    let match = rawText.match(indicator);
-    if (match) {
-      positivePart = rawText.substring(0, match.index).trim();
-      negativePart = match[1].trim();
-      break;
-    }
-  }
+  // Patterns to detect polarity at the beginning of a line
+  const posRegex = /^(?:Positive|pos)[\:\;]\s*/i;
+  const negRegex = /^(?:Negative|neg)[\:\;]\s*|^(?:Negative prompt:)\s*|^--n(?:o)?\s+/i;
   
   function blockToTokens(textBlock) {
     if (!textBlock.trim()) return [];
@@ -735,11 +713,36 @@ function parseRawPrompt(rawText) {
     }
     return parsed;
   }
+
+  let phaseIndex = 1;
+  let currentPolarityIsNegative = false; // Maintain polarity across lines
+
+  lines.forEach(line => {
+    let cleanLine = line.trim();
+    if (!cleanLine) return;
+    
+    // Check if the line changes the polarity
+    if (negRegex.test(cleanLine)) {
+      currentPolarityIsNegative = true;
+      cleanLine = cleanLine.replace(negRegex, '').trim();
+    } else if (posRegex.test(cleanLine)) {
+      currentPolarityIsNegative = false;
+      cleanLine = cleanLine.replace(posRegex, '').trim();
+    }
+    
+    if (!cleanLine) return;
+    
+    const tokens = blockToTokens(cleanLine);
+    if (tokens.length > 0) {
+      phases.push({
+        name: `Imported ${currentPolarityIsNegative ? 'Negative' : 'Positive'} ${phaseIndex++}`,
+        isNegative: currentPolarityIsNegative,
+        tokens: tokens
+      });
+    }
+  });
   
-  return {
-    posTokens: blockToTokens(positivePart),
-    negTokens: blockToTokens(negativePart)
-  };
+  return phases;
 }
 
 // Compile Final Prompt Strings
