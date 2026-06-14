@@ -426,6 +426,7 @@ input[type="range"].custom-slider::-moz-range-thumb {
   position: relative;
   overflow: hidden;
   animation: scaleUp 0.18s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  flex-shrink: 0;
 }
 .concept-card::before {
   content: '';
@@ -450,9 +451,8 @@ input[type="range"].custom-slider::-moz-range-thumb {
   font-size: 12px;
   font-weight: 700;
   color: #e2e8f0;
-  margin-bottom: 6px;
   line-height: 1.4;
-  padding-right: 22px;
+  /* padding-right はフレックスレイアウトで不要 */
 }
 
 .concept-card-meta {
@@ -534,6 +534,17 @@ input[type="range"].custom-slider::-moz-range-thumb {
               0 4px 32px rgba(168,85,247,0.1);
 }
 
+/* Concept Archive panel glow */
+.concept-archive-glow {
+  box-shadow: 0 0 0 1px rgba(168,85,247,0.08),
+              0 4px 28px rgba(168,85,247,0.05);
+  transition: box-shadow 0.3s ease;
+}
+.concept-archive-glow:hover {
+  box-shadow: 0 0 0 1px rgba(168,85,247,0.16),
+              0 4px 32px rgba(168,85,247,0.1);
+}
+
 /* Empty state in library */
 .concept-empty-state {
   text-align: center;
@@ -546,6 +557,278 @@ input[type="range"].custom-slider::-moz-range-thumb {
   display: block;
   opacity: 0.5;
 }
+
+/* ============================================================
+   CONCEPT CARD — ACTION ROW (commit / tree / export)
+   ============================================================ */
+
+/* Row container: action-links left, phase count right */
+.concept-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  flex-wrap: wrap;
+}
+
+/* Group of green action link buttons */
+.concept-card-action-links {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Green neon text action links */
+.concept-action-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #34d399; /* emerald-400 */
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  letter-spacing: 0.02em;
+  position: relative;
+  transition: color 0.18s ease, text-shadow 0.18s ease;
+  white-space: nowrap;
+}
+
+/* Subtle underline decoration */
+.concept-action-link::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0; right: 0;
+  height: 1px;
+  background: #34d399;
+  opacity: 0;
+  transform: scaleX(0.6);
+  transform-origin: left;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+/* Hover: neon glow + underline appears */
+.concept-action-link:hover {
+  color: #6ee7b7; /* lighter emerald */
+  text-shadow:
+    0 0 6px rgba(52, 211, 153, 0.7),
+    0 0 14px rgba(52, 211, 153, 0.4);
+}
+.concept-action-link:hover::after {
+  opacity: 0.8;
+  transform: scaleX(1);
+}
+
+/* Active state (this concept is loaded) — brighter + pulsing glow */
+.concept-action-link--active {
+  color: #10b981; /* emerald-500 */
+  text-shadow:
+    0 0 8px rgba(16, 185, 129, 0.8),
+    0 0 20px rgba(16, 185, 129, 0.4);
+  animation: emeraldPulse 2s ease-in-out infinite;
+}
+.concept-action-link--active:hover {
+  color: #34d399;
+}
+
+@keyframes emeraldPulse {
+  0%, 100% { text-shadow: 0 0 6px rgba(16,185,129,0.6), 0 0 14px rgba(16,185,129,0.3); }
+  50%       { text-shadow: 0 0 10px rgba(16,185,129,0.9), 0 0 24px rgba(16,185,129,0.5); }
+}
+
+/* pos-phases / neg-phases count — right-aligned */
+.concept-phase-count {
+  display: flex;
+  align-items: center;
+  font-size: 9px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.concept-phase-count__pos {
+  color: #34d399; /* emerald-400 */
+}
+.concept-phase-count__sep {
+  color: #334155; /* slate-700 */
+}
+.concept-phase-count__neg {
+  color: #f87171; /* rose-400 */
+}
+
+/* ============================================================
+   CONCEPT LIST CONTAINER HEIGHT OVERRIDE
+   (overrides Tailwind max-h-72 set in HTML)
+   ============================================================ */
+#page-library,
+#concept-library-panel {
+  height: auto;
+  min-height: 0;
+}
+
+#concept-list-container {
+  height: 720px;
+  max-height: 720px;
+  overflow-y: auto;
+}
+
+/* ============================================================
+   CONCEPT CARD PIN & BOOKMARK BUTTONS
+   ============================================================ */
+
+/* Shared base for pin/bookmark icon buttons */
+.btn-concept-pin,
+.btn-concept-bookmark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  color: #475569;
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.18s ease;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+/* Pin button: gold on active */
+.btn-concept-pin:hover {
+  color: #fbbf24;
+  text-shadow: 0 0 6px rgba(251,191,36,0.5);
+}
+.btn-concept-pin.is-pinned {
+  color: #fbbf24;
+  text-shadow:
+    0 0 6px rgba(251,191,36,0.8),
+    0 0 14px rgba(251,191,36,0.4);
+  animation: pinPulse 2s ease-in-out infinite;
+}
+.btn-concept-pin.is-pinned:hover {
+  color: #fb7185;
+  text-shadow: 0 0 6px rgba(251,113,133,0.5);
+  animation: none;
+}
+
+@keyframes pinPulse {
+  0%, 100% { text-shadow: 0 0 5px rgba(251,191,36,0.6), 0 0 10px rgba(251,191,36,0.3); }
+  50%       { text-shadow: 0 0 9px rgba(251,191,36,0.9), 0 0 20px rgba(251,191,36,0.5); }
+}
+
+/* Bookmark button: cyan on active */
+.btn-concept-bookmark:hover {
+  color: #06b6d4;
+  text-shadow: 0 0 6px rgba(6,182,212,0.5);
+}
+.btn-concept-bookmark.is-bookmarked {
+  color: #06b6d4;
+  text-shadow:
+    0 0 6px rgba(6,182,212,0.8),
+    0 0 14px rgba(6,182,212,0.4);
+  animation: bookmarkPulse 2s ease-in-out infinite;
+}
+.btn-concept-bookmark.is-bookmarked:hover {
+  color: #fb7185;
+  text-shadow: 0 0 6px rgba(251,113,133,0.5);
+  animation: none;
+}
+
+@keyframes bookmarkPulse {
+  0%, 100% { text-shadow: 0 0 5px rgba(6,182,212,0.6), 0 0 10px rgba(6,182,212,0.3); }
+  50%       { text-shadow: 0 0 9px rgba(6,182,212,0.9), 0 0 20px rgba(6,182,212,0.5); }
+}
+
+/* Pinned card: subtle gold top-bar */
+.concept-card--pinned::before {
+  background: linear-gradient(90deg, #fbbf24, #f59e0b) !important;
+  opacity: 1 !important;
+}
+
+/* ============================================================
+   BOOKMARK MODAL OPEN BUTTON
+   ============================================================ */
+#btn-open-bookmark-modal {
+  width: 100%;
+  padding: 8px 14px;
+  margin-bottom: 12px;
+  background: linear-gradient(135deg, rgba(6,182,212,0.18), rgba(8,145,178,0.12));
+  border: 1px solid rgba(6,182,212,0.35);
+  border-radius: 8px;
+  color: #67e8f9;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.18s ease;
+  text-transform: uppercase;
+}
+#btn-open-bookmark-modal:hover {
+  background: linear-gradient(135deg, rgba(6,182,212,0.28), rgba(8,145,178,0.20));
+  border-color: rgba(6,182,212,0.6);
+  color: #a5f3fc;
+  box-shadow: 0 0 12px rgba(6,182,212,0.2);
+}
+
+/* ============================================================
+   BOOKMARK LIST MODAL
+   ============================================================ */
+#bookmark-list-modal .modal-box {
+  border-color: rgba(6,182,212,0.25);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(6,182,212,0.10);
+}
+
+.bookmark-card {
+  background: rgba(15,23,42,0.55);
+  border: 1px solid rgba(6,182,212,0.15);
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  position: relative;
+  overflow: hidden;
+}
+.bookmark-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #06b6d4, #67e8f9);
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+.bookmark-card:hover {
+  border-color: rgba(6,182,212,0.4);
+  background: rgba(15,23,42,0.75);
+  box-shadow: 0 4px 16px rgba(6,182,212,0.08);
+  transform: translateY(-1px);
+}
+.bookmark-card:hover::before {
+  opacity: 1;
+}
+
+/* Active concept card highlight border */
+.concept-card--active {
+  border-color: rgba(16, 185, 129, 0.4) !important;
+  box-shadow: 0 0 0 1px rgba(16,185,129,0.15),
+              0 4px 20px rgba(16,185,129,0.08);
+}
+.concept-card--active::before {
+  background: linear-gradient(90deg, #10b981, #06b6d4);
+  opacity: 1 !important;
+}
+
 
 /* ============================================================
    SAVE CONCEPT MODAL
@@ -1471,3 +1754,533 @@ input[type="range"].custom-slider::-moz-range-thumb {
   font-style: italic;
 }
 
+/* ============================================================
+   ANALYSIS SOURCE BADGE  (Requirement 7)
+   ============================================================ */
+
+/* Base badge style */
+.da-source-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border: 1px solid;
+  transition: background 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Local Analysis variant */
+.da-source-local {
+  background: rgba(71, 85, 105, 0.20);
+  border-color: rgba(71, 85, 105, 0.40);
+  color: #94a3b8;
+  box-shadow: none;
+}
+
+/* Gemini Analysis variant — glowing indigo */
+.da-source-gemini {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.18) 0%, rgba(139, 92, 246, 0.14) 100%);
+  border-color: rgba(139, 92, 246, 0.55);
+  color: #c4b5fd;
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.25);
+  animation: geminiSourcePulse 2.5s ease-in-out infinite;
+}
+
+@keyframes geminiSourcePulse {
+  0%, 100% { box-shadow: 0 0 8px  rgba(139, 92, 246, 0.20); }
+  50%       { box-shadow: 0 0 18px rgba(139, 92, 246, 0.45); }
+}
+
+/* 3D Page Flip Animation */
+.token-area-3d {
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+}
+
+.flip-enter {
+  animation: flipIn 0.25s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+@keyframes flipIn {
+  0% {
+    transform: perspective(1000px) rotateY(90deg);
+    opacity: 0;
+  }
+  100% {
+    transform: perspective(1000px) rotateY(0deg);
+    opacity: 1;
+  }
+}
+
+
+/* ============================================================
+   BOTTOM NAVIGATION BAR — Premium Glassmorphism UI
+   ============================================================ */
+
+/**
+ * 1. バナー全体のガラスモルフィズムエフェクト
+ *    既存の .glass-panel を踏襲しつつ、より深いブラーと
+ *    サイバーパンクなグラデーションボーダーで強化。
+ */
+#bottom-nav {
+  /* Override Tailwind inline bg/border */
+  background: rgba(11, 15, 25, 0.85) !important;
+  backdrop-filter: blur(16px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.07) !important;
+
+  /* Subtle neon shadow under the bar */
+  box-shadow:
+    0 -1px 0 0 rgba(168, 85, 247, 0.12),
+    0 -8px 32px -4px rgba(0, 0, 0, 0.55);
+
+  position: fixed;
+  transition: box-shadow 0.3s ease;
+}
+
+/* Top-edge neon accent line */
+#bottom-nav::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(168, 85, 247, 0.45) 30%,
+    rgba(6, 182, 212, 0.45) 70%,
+    transparent
+  );
+  pointer-events: none;
+}
+
+/* ============================================================
+   2. タブボタン — ホバー & アクティブ時のネオン発光 + 遷移
+   ============================================================ */
+
+.nav-tab-btn {
+  position: relative;
+  transition:
+    color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.25s ease,
+    transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* Ripple background layer */
+.nav-tab-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+/* Bottom indicator line */
+.nav-tab-btn::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 20%;
+  right: 20%;
+  height: 2px;
+  border-radius: 9999px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+/* ---- ホバー状態 ---- */
+.nav-tab-btn:hover {
+  transform: translateY(-2px);
+}
+.nav-tab-btn:hover::before {
+  opacity: 1;
+}
+
+.nav-tab-btn[data-tab="library"]:hover::before   { background: rgba(168, 85, 247, 0.12); }
+.nav-tab-btn[data-tab="workspace"]:hover::before { background: rgba(6, 182, 212, 0.12); }
+.nav-tab-btn[data-tab="compile"]:hover::before   { background: rgba(6, 182, 212, 0.12); }
+.nav-tab-btn[data-tab="generate"]:hover::before  { background: rgba(245, 158, 11, 0.12); }
+.nav-tab-btn[data-tab="analysis"]:hover::before  { background: rgba(99, 102, 241, 0.12); }
+
+/* ---- アクティブ（選択中）状態 ---- */
+.nav-tab-btn.is-active {
+  transform: translateY(-1px);
+}
+.nav-tab-btn.is-active::before { opacity: 1; }
+.nav-tab-btn.is-active::after  { opacity: 1; }
+
+/* workspace — cyan */
+.nav-tab-btn[data-tab="workspace"].is-active {
+  animation: navGlowCyan 2.8s ease-in-out infinite;
+}
+.nav-tab-btn[data-tab="workspace"].is-active::before { background: rgba(6, 182, 212, 0.15); }
+.nav-tab-btn[data-tab="workspace"].is-active::after  {
+  background: var(--neon-cyan);
+  box-shadow: 0 0 8px var(--neon-cyan);
+}
+
+/* library — purple */
+.nav-tab-btn[data-tab="library"].is-active {
+  animation: navGlowPurple 2.8s ease-in-out infinite;
+}
+.nav-tab-btn[data-tab="library"].is-active::before { background: rgba(168, 85, 247, 0.15); }
+.nav-tab-btn[data-tab="library"].is-active::after  {
+  background: var(--neon-purple);
+  box-shadow: 0 0 8px var(--neon-purple);
+}
+
+/* compile — cyan */
+.nav-tab-btn[data-tab="compile"].is-active {
+  animation: navGlowCyan 2.8s ease-in-out infinite;
+}
+.nav-tab-btn[data-tab="compile"].is-active::before { background: rgba(6, 182, 212, 0.15); }
+.nav-tab-btn[data-tab="compile"].is-active::after  {
+  background: var(--neon-cyan);
+  box-shadow: 0 0 8px var(--neon-cyan);
+}
+
+/* generate — amber */
+.nav-tab-btn[data-tab="generate"].is-active {
+  animation: navGlowAmber 2.8s ease-in-out infinite;
+}
+.nav-tab-btn[data-tab="generate"].is-active::before { background: rgba(245, 158, 11, 0.15); }
+.nav-tab-btn[data-tab="generate"].is-active::after  {
+  background: #f59e0b;
+  box-shadow: 0 0 8px #f59e0b;
+}
+
+/* analysis — indigo */
+.nav-tab-btn[data-tab="analysis"].is-active {
+  animation: navGlowIndigo 2.8s ease-in-out infinite;
+}
+.nav-tab-btn[data-tab="analysis"].is-active::before { background: rgba(99, 102, 241, 0.15); }
+.nav-tab-btn[data-tab="analysis"].is-active::after  {
+  background: #6366f1;
+  box-shadow: 0 0 8px #6366f1;
+}
+
+/* ネオン発光キーフレーム */
+@keyframes navGlowCyan {
+  0%, 100% { box-shadow: 0 0 10px rgba(6, 182, 212, 0.18); }
+  50%       { box-shadow: 0 0 22px rgba(6, 182, 212, 0.38); }
+}
+@keyframes navGlowPurple {
+  0%, 100% { box-shadow: 0 0 10px rgba(168, 85, 247, 0.18); }
+  50%       { box-shadow: 0 0 22px rgba(168, 85, 247, 0.38); }
+}
+@keyframes navGlowAmber {
+  0%, 100% { box-shadow: 0 0 10px rgba(245, 158, 11, 0.18); }
+  50%       { box-shadow: 0 0 22px rgba(245, 158, 11, 0.38); }
+}
+@keyframes navGlowIndigo {
+  0%, 100% { box-shadow: 0 0 10px rgba(99, 102, 241, 0.18); }
+  50%       { box-shadow: 0 0 22px rgba(99, 102, 241, 0.38); }
+}
+
+/* アクティブ時アイコンスケールアップ */
+.nav-tab-btn.is-active i {
+  transform: scale(1.18);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.nav-tab-btn:not(.is-active) i {
+  transform: scale(1);
+  transition: transform 0.2s ease;
+}
+
+/* ============================================================
+   3. ページ切り替えフェードイン演出
+   ============================================================ */
+
+/**
+ * .page-entrance クラスを表示時に付与するだけで適用。
+ * また、JS を変更せずに :not(.hidden) セレクタでも自動発火。
+ */
+@keyframes pageEntranceFade {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.99);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0px);
+  }
+}
+
+/* 明示クラス — JS で classList.add('page-entrance') して利用 */
+.page-entrance {
+  animation: pageEntranceFade 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* will-change でレンダリングレイヤーを事前確保 */
+#page-workspace,
+#page-library,
+#page-compile,
+#page-generate,
+#page-analysis {
+  will-change: opacity, transform;
+}
+
+/*
+ * CSS のみで対応するフォールバック:
+ * .hidden が外れた瞬間に pageEntranceFade を自動発火。
+ * JS で page-entrance クラスを付与する実装を追加すれば
+ * こちらは不要になりますが、互換性のため残しています。
+ */
+#page-workspace:not(.hidden),
+#page-library:not(.hidden),
+#page-compile:not(.hidden),
+#page-generate:not(.hidden),
+#page-analysis:not(.hidden) {
+  animation: pageEntranceFade 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ============================================================
+   TIME-LINE TREE PANEL
+   ============================================================ */
+
+.timeline-tree-glow {
+  box-shadow: 0 0 0 1px rgba(6,182,212,0.10),
+              0 4px 28px rgba(6,182,212,0.07);
+  transition: box-shadow 0.3s ease;
+}
+.timeline-tree-glow:hover {
+  box-shadow: 0 0 0 1px rgba(6,182,212,0.18),
+              0 4px 32px rgba(6,182,212,0.12);
+}
+
+/* Timeline Row */
+.tl-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  position: relative;
+}
+
+/* Vertical dashed line connector */
+.tl-connector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 24px;
+  flex-shrink: 0;
+}
+.tl-connector-line {
+  width: 1px;
+  flex-grow: 1;
+  min-height: 12px;
+  border-left: 1px dashed rgba(100,116,139,0.35);
+}
+
+/* Commit node (circle) */
+.tl-node-commit {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(168,85,247,0.6);
+  background: rgba(168,85,247,0.10);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  color: #c084fc;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.18s ease;
+}
+.tl-node-commit:hover {
+  border-color: rgba(168,85,247,1);
+  background: rgba(168,85,247,0.25);
+  box-shadow: 0 0 10px rgba(168,85,247,0.4);
+  transform: scale(1.15);
+}
+.tl-node-commit.active {
+  border-color: #a855f7;
+  background: rgba(168,85,247,0.25);
+  box-shadow: 0 0 12px rgba(168,85,247,0.45);
+}
+
+/* Diff node (X) */
+.tl-node-diff {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1.5px solid rgba(6,182,212,0.45);
+  background: rgba(6,182,212,0.07);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  color: #67e8f9;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.18s ease;
+}
+.tl-node-diff:hover {
+  border-color: rgba(6,182,212,0.85);
+  background: rgba(6,182,212,0.18);
+  box-shadow: 0 0 8px rgba(6,182,212,0.35);
+  transform: scale(1.12);
+}
+.tl-node-diff.active {
+  border-color: #06b6d4;
+  background: rgba(6,182,212,0.20);
+  box-shadow: 0 0 10px rgba(6,182,212,0.42);
+}
+
+/* Timeline label */
+.tl-label {
+  padding: 2px 6px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: #94a3b8;
+  flex-grow: 1;
+  min-width: 0;
+  word-break: break-all;
+}
+.tl-label-commit { color: #c084fc; font-weight: 600; }
+.tl-label-diff   { color: #67e8f9; font-style: italic; }
+
+/* Diff Tab Bar */
+.diff-tab {
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  border: 1px solid rgba(255,255,255,0.07);
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.diff-tab:hover {
+  background: rgba(255,255,255,0.06);
+  color: #e2e8f0;
+}
+.diff-tab.active {
+  background: rgba(6,182,212,0.14);
+  border-color: rgba(6,182,212,0.4);
+  color: #67e8f9;
+  box-shadow: 0 0 8px rgba(6,182,212,0.15);
+}
+
+/* Diff content styles */
+.diff-section-title {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #475569;
+  margin-bottom: 6px;
+  margin-top: 10px;
+}
+.diff-section-title:first-child { margin-top: 0; }
+
+.diff-add {
+  color: #34d399;
+  background: rgba(16,185,129,0.08);
+  border-left: 2px solid rgba(16,185,129,0.4);
+  padding: 2px 6px;
+  border-radius: 2px;
+  margin-bottom: 2px;
+}
+.diff-del {
+  color: #fb7185;
+  background: rgba(244,63,94,0.08);
+  border-left: 2px solid rgba(244,63,94,0.4);
+  padding: 2px 6px;
+  border-radius: 2px;
+  margin-bottom: 2px;
+  text-decoration: line-through;
+}
+.diff-mod {
+  color: #fbbf24;
+  background: rgba(245,158,11,0.08);
+  border-left: 2px solid rgba(245,158,11,0.4);
+  padding: 2px 6px;
+  border-radius: 2px;
+  margin-bottom: 2px;
+}
+.diff-unchanged {
+  color: #475569;
+  padding: 2px 6px;
+  margin-bottom: 2px;
+}
+
+/* Phase order visualization bars */
+.phase-order-bar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  min-width: 80px;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.phase-order-bar.pos {
+  background: rgba(16,185,129,0.12);
+  border: 1px solid rgba(16,185,129,0.3);
+  color: #6ee7b7;
+}
+.phase-order-bar.neg {
+  background: rgba(244,63,94,0.12);
+  border: 1px solid rgba(244,63,94,0.3);
+  color: #fda4af;
+}
+
+/* Note textarea in diff */
+.diff-note-textarea {
+  width: 100%;
+  min-height: 90px;
+  background: rgba(2,6,23,0.5);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: #e2e8f0;
+  resize: vertical;
+  outline: none;
+  font-family: 'Outfit', sans-serif;
+  transition: border-color 0.2s;
+}
+.diff-note-textarea:focus {
+  border-color: rgba(6,182,212,0.5);
+  box-shadow: 0 0 0 2px rgba(6,182,212,0.10);
+}
+
+/* Restore from archive card */
+.archive-restore-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(168,85,247,0.25);
+  background: rgba(168,85,247,0.06);
+  margin-bottom: 6px;
+  font-size: 11px;
+  transition: all 0.18s ease;
+}
+.archive-restore-card:hover {
+  border-color: rgba(168,85,247,0.45);
+  background: rgba(168,85,247,0.12);
+}

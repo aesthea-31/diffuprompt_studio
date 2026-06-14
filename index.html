@@ -51,6 +51,14 @@
       
       <!-- Quick utility links -->
       <div class="flex items-center gap-3">
+        <!-- Commit button: enabled only when a concept is selected as active -->
+        <button id="btn-commit-to-concept"
+                disabled
+                title="選択中のコンセプトに現在のワークスペースをコミット"
+                class="text-xs font-semibold px-3 py-1.5 rounded-lg border border-emerald-600/40 bg-emerald-950/30 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-900/30 hover:border-emerald-500/50 transition flex items-center gap-1.5 disabled:opacity-30 disabled:cursor-not-allowed disabled:pointer-events-none">
+          <i class="fa-solid fa-code-commit text-[10px]"></i>
+          <span id="btn-commit-label">Commit</span>
+        </button>
         <button id="btn-reset-default" class="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-700/60 bg-slate-900/40 text-slate-300 hover:text-slate-100 hover:bg-slate-800 hover:border-slate-500 transition flex items-center gap-1.5">
           <i class="fa-solid fa-arrow-rotate-left text-[10px]"></i>
           Reset Board
@@ -64,410 +72,489 @@
   </header>
 
   <!-- Main Application Wrapper -->
-  <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      
-      <!-- LEFT & CENTER COLUMNS: Phases and Tokens (2/3 width) -->
-      <div class="lg:col-span-2 flex flex-col gap-6">
-        
-        <!-- Phase Creation Panel -->
-        <section class="glass-panel rounded-xl p-5 border border-slate-800/80 shadow-xl">
-          <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3.5 flex items-center gap-2">
-            <i class="fa-solid fa-circle-plus text-purple-400"></i>
-            Create New Prompt Phase
-          </h2>
-          
-          <div class="flex flex-col sm:flex-row items-center gap-4">
-            <!-- Phase Name Input -->
-            <div class="w-full sm:flex-grow relative bg-slate-950/40 border border-slate-800/80 rounded-lg p-2 focus-within:border-purple-500 transition duration-200">
-              <input type="text" 
-                     id="input-new-phase-name" 
-                     placeholder="e.g., Lighting, Camera Angles, Styling, Background..." 
-                     class="bg-transparent text-sm text-slate-100 w-full focus:outline-none px-2 py-1"
-              >
-            </div>
-            
-            <!-- Type Selector (Positive / Negative) -->
-            <div class="flex items-center gap-3 shrink-0">
-              <label class="text-xs font-semibold text-slate-300 cursor-pointer flex items-center gap-2 bg-slate-900/50 px-3 py-2.5 rounded-lg border border-slate-800/80 select-none">
-                <input type="checkbox" id="checkbox-new-phase-neg" class="checkbox-cyber w-4.5 h-4.5">
-                <span>Negative Phase</span>
-              </label>
-              
-              <!-- Add Button -->
-              <button id="btn-add-phase" class="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 text-white rounded-lg transition text-sm font-semibold shadow-lg shadow-purple-600/15 whitespace-nowrap">
-                Add Phase
-              </button>
-            </div>
-          </div>
-        </section>
+  <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24">
+    <!-- ========== PAGE: Workspace ========== -->
+    <div id="page-workspace">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-        <!-- Dynamic Phases Container -->
-        <section id="phases-container" class="flex flex-col gap-5">
-          <!-- Dynamically populated by app.js -->
-        </section>
+        <!-- LEFT & CENTER COLUMNS: Phases and Tokens (2/3 width) -->
+        <div class="lg:col-span-2 flex flex-col gap-6">
 
-      </div>
+          <!-- Phase Creation Panel -->
+          <section class="glass-panel rounded-xl p-5 border border-slate-800/80 shadow-xl">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3.5 flex items-center gap-2">
+              <i class="fa-solid fa-circle-plus text-purple-400"></i>
+              Create New Prompt Phase
+            </h2>
 
-      <!-- RIGHT COLUMN: Output & Presets (1/3 width) -->
-      <div class="lg:col-span-1 flex flex-col gap-6">
-        
-        <!-- LIVE OUTPUT PANEL -->
-        <section class="glass-panel rounded-xl p-5 border border-slate-800/80 shadow-xl pulse-border-purple">
-          <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
-            <i class="fa-solid fa-wand-magic text-cyan-400"></i>
-            Live Prompts Compile
-          </h2>
-          
-          <!-- Positive Prompt -->
-          <div class="mb-4">
-            <div class="flex items-center justify-between mb-1.5">
-              <span class="text-xs font-bold text-emerald-400 uppercase tracking-wide flex items-center gap-1.5">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
-                Positive Prompt
-              </span>
-              <div class="text-[10px] text-slate-400 font-mono">
-                <span id="pos-char-count">0</span> chars / <span id="pos-token-count">0</span> words
-              </div>
-            </div>
-            
-            <div class="relative group">
-              <textarea id="output-pos-prompt" 
-                        readonly 
-                        rows="4" 
-                        placeholder="Positive prompt tokens will compile here automatically..." 
-                        class="w-full bg-slate-950/80 border border-slate-800/80 rounded-lg p-3 text-xs text-slate-300 font-mono focus:outline-none focus:border-slate-700 resize-none h-24"
-              ></textarea>
-              <button id="btn-copy-pos" 
-                      class="absolute right-2.5 bottom-2.5 px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-slate-100 rounded text-[10px] font-semibold border border-slate-700/50 hover:border-slate-500 transition flex items-center gap-1"
-                      title="Copy Positive Prompt"
-              >
-                <i class="fa-regular fa-copy"></i> Copy
-              </button>
-            </div>
-          </div>
-
-          <!-- Negative Prompt -->
-          <div class="mb-5">
-            <div class="flex items-center justify-between mb-1.5">
-              <span class="text-xs font-bold text-rose-400 uppercase tracking-wide flex items-center gap-1.5">
-                <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                Negative Prompt
-              </span>
-              <div class="text-[10px] text-slate-400 font-mono">
-                <span id="neg-char-count">0</span> chars / <span id="neg-token-count">0</span> words
-              </div>
-            </div>
-            
-            <div class="relative group">
-              <textarea id="output-neg-prompt" 
-                        readonly 
-                        rows="3" 
-                        placeholder="Negative prompt tokens will compile here automatically..." 
-                        class="w-full bg-slate-950/80 border border-slate-800/80 rounded-lg p-3 text-xs text-slate-300 font-mono focus:outline-none focus:border-slate-700 resize-none h-20"
-              ></textarea>
-              <button id="btn-copy-neg" 
-                      class="absolute right-2.5 bottom-2.5 px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-slate-100 rounded text-[10px] font-semibold border border-slate-700/50 hover:border-slate-500 transition flex items-center gap-1"
-                      title="Copy Negative Prompt"
-              >
-                <i class="fa-regular fa-copy"></i> Copy
-              </button>
-            </div>
-          </div>
-
-          <!-- Quick Bundle Copy -->
-          <button id="btn-copy-combined" class="w-full py-2.5 bg-gradient-to-r from-purple-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 text-white rounded-lg transition text-xs font-bold shadow-lg shadow-cyan-500/10 flex items-center justify-center gap-2">
-            <i class="fa-solid fa-copy"></i>
-            Copy Combined Bundle (Positive + Negative)
-          </button>
-        </section>
-
-        <!-- PROMPT PARSER / IMPORT PANEL -->
-        <section class="glass-panel rounded-xl p-5 border border-slate-800/80 shadow-xl">
-          <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
-            <i class="fa-solid fa-arrow-down-up-lock text-purple-400"></i>
-            Paste Raw Prompt Parser
-          </h2>
-          <p class="text-xs text-slate-400 mb-3">Paste a prompt with weights like <code>(tag:1.2)</code> or <code>[tag]</code>, or separate tags with commas to auto-import them.</p>
-          
-          <div class="flex flex-col gap-3">
-            <textarea id="textarea-raw-import" 
-                      rows="3" 
-                      placeholder="Paste your raw prompt here... (Supports --n, --no, or Negative prompt: headers to split)" 
-                      class="w-full bg-slate-950/40 border border-slate-800/80 rounded-lg p-3 text-xs text-slate-200 focus:outline-none focus:border-purple-500 transition h-20"
-            ></textarea>
-            
-            <button id="btn-parse-prompt" class="w-full py-2 bg-slate-800 hover:bg-slate-700 hover:text-slate-100 rounded-lg text-slate-300 text-xs font-semibold border border-slate-700/60 transition flex items-center justify-center gap-1.5">
-              <i class="fa-solid fa-wand-magic-sparkles text-cyan-400"></i>
-              Parse & Import Prompt
-            </button>
-          </div>
-        </section>
-
-        <!-- PRESET MANAGER -->
-        <section class="glass-panel rounded-xl p-5 border border-slate-800/80 shadow-xl">
-          <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3.5 flex items-center gap-2">
-            <i class="fa-solid fa-boxes-packing text-cyan-400"></i>
-            Prompt Presets
-          </h2>
-          
-          <!-- Save Current Setup Preset -->
-          <div class="flex items-center gap-2 mb-4">
-            <div class="flex-grow bg-slate-950/40 border border-slate-800/80 rounded-lg p-1.5 focus-within:border-cyan-500 transition duration-200">
-              <input type="text" 
-                     id="input-preset-name" 
-                     placeholder="New preset name..." 
-                     class="bg-transparent text-xs text-slate-200 w-full focus:outline-none px-1.5 py-0.5"
-              >
-            </div>
-            <button id="btn-save-preset" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 hover:text-cyan-300 rounded-lg text-xs font-semibold border border-slate-700/60 transition whitespace-nowrap">
-              Save Current
-            </button>
-          </div>
-
-          <!-- Preset list -->
-          <div id="preset-list-container" class="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1">
-            <!-- Dynamically populated by app.js -->
-          </div>
-          
-          <!-- Import/Export buttons -->
-          <div class="mt-4 pt-4 border-t border-slate-800/80 flex items-center justify-between gap-3">
-            <!-- Import Preset file input trigger -->
-            <label class="w-1/2 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded text-[10px] font-semibold border border-slate-800 hover:border-slate-700 transition cursor-pointer text-center flex items-center justify-center gap-1.5">
-              <i class="fa-solid fa-file-import text-purple-400"></i>
-              Import JSON
-              <input type="file" id="file-import-presets" accept=".json" class="hidden">
-            </label>
-            
-            <!-- Export Preset -->
-            <button id="btn-export-presets" class="w-1/2 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded text-[10px] font-semibold border border-slate-800 hover:border-slate-700 transition flex items-center justify-center gap-1.5">
-              <i class="fa-solid fa-file-export text-cyan-400"></i>
-              Export JSON
-            </button>
-          </div>
-        </section>
-
-        <!-- STYLE CONCEPT LIBRARY PANEL -->
-        <section class="glass-panel rounded-xl p-5 border border-purple-900/30 shadow-xl concept-library-glow" id="concept-library-panel">
-          <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-1 flex items-center gap-2">
-            <i class="fa-solid fa-layer-group text-purple-400"></i>
-            Style Concept Library
-            <span class="ml-auto text-[9px] font-bold px-2 py-0.5 rounded bg-purple-950/60 text-purple-300 border border-purple-600/30 uppercase">Persistent</span>
-          </h2>
-          <p class="text-[10px] text-slate-500 mb-3.5">レイヤー構造でスタイルコンセプトを永久保存・管理</p>
-
-          <!-- Save as Concept Button -->
-          <button id="btn-open-save-concept"
-                  class="w-full py-2.5 mb-4 bg-gradient-to-r from-purple-700/70 to-indigo-700/60 hover:from-purple-600/80 hover:to-indigo-600/70 text-white rounded-lg transition text-xs font-bold border border-purple-500/30 hover:border-purple-400/50 shadow-md shadow-purple-900/20 flex items-center justify-center gap-2">
-            <i class="fa-solid fa-floppy-disk"></i>
-            Save Current as Concept
-          </button>
-
-          <!-- Category Filter Tabs -->
-          <div id="concept-category-tabs" class="category-tab-bar mb-3">
-            <!-- Dynamically populated by app.js -->
-          </div>
-
-          <!-- Concept Card List -->
-          <div id="concept-list-container" class="flex flex-col gap-2 max-h-72 overflow-y-auto pr-1">
-            <!-- Dynamically populated by app.js -->
-          </div>
-
-          <!-- Export / Import -->
-          <div class="mt-4 pt-4 border-t border-slate-800/80 flex items-center justify-between gap-3">
-            <label class="w-1/2 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded text-[10px] font-semibold border border-slate-800 hover:border-slate-700 transition cursor-pointer text-center flex items-center justify-center gap-1.5">
-              <i class="fa-solid fa-file-import text-purple-400"></i>
-              Import Concepts
-              <input type="file" id="file-import-concepts" accept=".json" class="hidden">
-            </label>
-            <button id="btn-export-concepts" class="w-1/2 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded text-[10px] font-semibold border border-slate-800 hover:border-slate-700 transition flex items-center justify-center gap-1.5">
-              <i class="fa-solid fa-file-export text-cyan-400"></i>
-              Export Concepts
-            </button>
-          </div>
-        </section>
-
-        <!-- STABILITY AI API PANEL -->
-        <section class="glass-panel rounded-xl p-5 border border-amber-900/30 shadow-xl api-panel-glow" id="api-panel">
-          <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3.5 flex items-center gap-2">
-            <i class="fa-solid fa-bolt text-amber-400"></i>
-            Generate via Stability AI
-            <span class="ml-auto text-[9px] font-bold px-2 py-0.5 rounded bg-amber-950/60 text-amber-400 border border-amber-600/30 uppercase">Ultra</span>
-          </h2>
-
-          <!-- API Key Input -->
-          <div class="mb-4">
-            <label class="text-xs font-semibold text-slate-400 mb-1.5 block">API Key</label>
-            <div class="flex items-center gap-2">
-              <div class="flex-grow bg-slate-950/40 border border-slate-800/80 rounded-lg p-1.5 focus-within:border-amber-500/50 transition duration-200 flex items-center gap-1">
-                <input type="password"
-                       id="input-api-key"
-                       placeholder="sk-..."
-                       class="bg-transparent text-xs text-slate-200 w-full focus:outline-none px-1.5 py-0.5 font-mono"
+            <div class="flex flex-col sm:flex-row items-center gap-4">
+              <!-- Phase Name Input -->
+              <div class="w-full sm:flex-grow relative bg-slate-950/40 border border-slate-800/80 rounded-lg p-2 focus-within:border-purple-500 transition duration-200">
+                <input type="text" 
+                       id="input-new-phase-name" 
+                       placeholder="e.g., Lighting, Camera Angles, Styling, Background..." 
+                       class="bg-transparent text-sm text-slate-100 w-full focus:outline-none px-2 py-1"
                 >
-                <button id="btn-toggle-api-key" class="text-slate-500 hover:text-slate-300 px-1 transition" title="Show/Hide key">
-                  <i class="fa-solid fa-eye text-xs" id="icon-eye"></i>
+              </div>
+
+              <!-- Type Selector (Positive / Negative) -->
+              <div class="flex items-center gap-3 shrink-0">
+                <label class="text-xs font-semibold text-slate-300 cursor-pointer flex items-center gap-2 bg-slate-900/50 px-3 py-2.5 rounded-lg border border-slate-800/80 select-none">
+                  <input type="checkbox" id="checkbox-new-phase-neg" class="checkbox-cyber w-4.5 h-4.5">
+                  <span>Negative Phase</span>
+                </label>
+
+                <!-- Add Button -->
+                <button id="btn-add-phase" class="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 text-white rounded-lg transition text-sm font-semibold shadow-lg shadow-purple-600/15 whitespace-nowrap">
+                  Add Phase
                 </button>
               </div>
-              <button id="btn-save-api-key" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 rounded-lg text-xs font-semibold border border-slate-700/60 transition whitespace-nowrap">
-                Save Key
+            </div>
+          </section>
+
+          <!-- Dynamic Phases Container -->
+          <section id="phases-container" class="flex flex-col gap-5">
+            <!-- Dynamically populated by app.js -->
+          </section>
+
+          <!-- PROMPT PARSER / IMPORT PANEL -->
+          <section class="glass-panel rounded-xl p-5 border border-slate-800/80 shadow-xl">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
+              <i class="fa-solid fa-arrow-down-up-lock text-purple-400"></i>
+              Paste Raw Prompt Parser
+            </h2>
+            <p class="text-xs text-slate-400 mb-3">Paste a prompt with weights like <code>(tag:1.2)</code> or <code>[tag]</code>, or separate tags with commas to auto-import them.</p>
+
+            <div class="flex flex-col gap-3">
+              <textarea id="textarea-raw-import" 
+                        rows="3" 
+                        placeholder="Paste your raw prompt here... (Supports --n, --no, or Negative prompt: headers to split)" 
+                        class="w-full bg-slate-950/40 border border-slate-800/80 rounded-lg p-3 text-xs text-slate-200 focus:outline-none focus:border-purple-500 transition h-20"
+              ></textarea>
+
+              <button id="btn-parse-prompt" class="w-full py-2 bg-slate-800 hover:bg-slate-700 hover:text-slate-100 rounded-lg text-slate-300 text-xs font-semibold border border-slate-700/60 transition flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-wand-magic-sparkles text-cyan-400"></i>
+                Parse & Import Prompt
               </button>
             </div>
-            <p class="text-[10px] text-slate-500 mt-1.5 flex items-center gap-1">
-              <i class="fa-solid fa-lock text-[9px]"></i>
-              Stored in localStorage only — never sent anywhere except Stability AI.
-            </p>
-          </div>
+          </section>
 
-          <!-- Generation Parameters -->
-          <div class="grid grid-cols-2 gap-3 mb-4">
-            <!-- Aspect Ratio -->
-            <div>
-              <label for="select-aspect-ratio" class="text-xs font-semibold text-slate-400 mb-1.5 block">Aspect Ratio</label>
-              <select id="select-aspect-ratio" class="api-select w-full">
-                <option value="1:1">1:1 — Square</option>
-                <option value="16:9">16:9 — Landscape</option>
-                <option value="9:16">9:16 — Portrait</option>
-                <option value="3:2">3:2 — Photo</option>
-                <option value="2:3">2:3 — Portrait</option>
-                <option value="4:5">4:5 — Instagram</option>
-                <option value="5:4">5:4</option>
-                <option value="21:9">21:9 — Cinematic</option>
-                <option value="9:21">9:21 — Tall</option>
-              </select>
-            </div>
+        </div>
 
-            <!-- Output Format -->
-            <div>
-              <label for="select-output-format" class="text-xs font-semibold text-slate-400 mb-1.5 block">Output Format</label>
-              <select id="select-output-format" class="api-select w-full">
-                <option value="png">PNG</option>
-                <option value="jpeg">JPEG</option>
-                <option value="webp">WebP</option>
-              </select>
-            </div>
-
-            <!-- Seed -->
-            <div class="col-span-2">
-              <label for="input-seed" class="text-xs font-semibold text-slate-400 mb-1.5 flex items-center gap-1.5 block">
-                Seed
-                <span class="font-normal text-slate-500">— 0 = random</span>
-              </label>
-              <input type="number"
-                     id="input-seed"
-                     min="0"
-                     max="4294967294"
-                     value="0"
-                     placeholder="0 (random)"
-                     class="w-full bg-slate-950/40 border border-slate-800/80 rounded-lg px-2.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500/50 transition font-mono"
-              >
-            </div>
-          </div>
-
-          <!-- ======= NEW: Sampling Steps + CFG Scale + Sampler ======= -->
-          <div class="mb-4 p-3 rounded-xl bg-slate-950/30 border border-amber-900/20">
-            <p class="text-[10px] font-bold uppercase tracking-wider text-amber-500/70 mb-3 flex items-center gap-1.5">
-              <i class="fa-solid fa-sliders"></i> Diffusion Parameters
-            </p>
-
-            <!-- Sampling Steps -->
-            <div class="mb-3">
-              <div class="flex items-center justify-between mb-1">
-                <label for="input-sampling-steps" class="text-xs font-semibold text-slate-400">Sampling Steps</label>
-                <span id="label-sampling-steps" class="text-xs font-bold text-amber-400 font-mono">20</span>
-              </div>
-              <input type="range"
-                     id="input-sampling-steps"
-                     min="15" max="45" step="1" value="20"
-                     class="custom-slider slider-amber w-full"
-              >
-              <div class="flex justify-between text-[9px] text-slate-600 mt-0.5">
-                <span>15</span><span>45</span>
-              </div>
-            </div>
-
-            <!-- CFG Scale -->
-            <div class="mb-3">
-              <div class="flex items-center justify-between mb-1">
-                <label for="input-cfg-scale" class="text-xs font-semibold text-slate-400">CFG Scale</label>
-                <span id="label-cfg-scale" class="text-xs font-bold text-amber-400 font-mono">7.0</span>
-              </div>
-              <input type="range"
-                     id="input-cfg-scale"
-                     min="3" max="15" step="0.5" value="7"
-                     class="custom-slider slider-amber w-full"
-              >
-              <div class="flex justify-between text-[9px] text-slate-600 mt-0.5">
-                <span>3</span><span>15</span>
-              </div>
-            </div>
-
-            <!-- Sampler -->
-            <div>
-              <label for="select-sampler" class="text-xs font-semibold text-slate-400 mb-1.5 block">Sampler</label>
-              <select id="select-sampler" class="api-select w-full">
-                <option value="euler_a">Euler a</option>
-                <option value="dpm2m" selected>DPM++ 2M</option>
-                <option value="dpm2m_karras">DPM++ 2M Karras</option>
-                <option value="dpm_sde_karras">DPM++ SDE Karras</option>
-                <option value="unipc">UniPC</option>
-                <option value="ddim">DDIM</option>
-              </select>
-            </div>
-          </div>
-          <!-- ======= END: Diffusion Parameters ======= -->
-
-          <!-- Prompt Preview (read-only mini) -->
-          <div class="mb-4 p-3 rounded-lg bg-slate-950/40 border border-slate-800/60">
-            <p class="text-[10px] text-slate-500 mb-1 uppercase font-bold tracking-wider">Will send compiled prompt</p>
-            <p id="api-prompt-preview" class="text-[11px] text-slate-300 font-mono truncate">—</p>
-          </div>
-
-          <!-- Generate Button -->
-          <button id="btn-generate-image"
-                  class="w-full py-3 bg-gradient-to-r from-amber-600 to-orange-500 hover:from-amber-500 hover:to-orange-400 text-white rounded-lg transition-all text-sm font-bold shadow-lg shadow-amber-600/20 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
-            <i class="fa-solid fa-wand-sparkles"></i>
-            Generate Image
-          </button>
-
-          <!-- API Status / Loading indicator -->
-          <div id="api-status" class="mt-3 hidden text-center">
-            <div class="flex items-center justify-center gap-2.5 text-amber-300 text-sm">
-              <div class="spinner-ring"></div>
-              <span id="api-status-text">Sending request…</span>
-            </div>
-          </div>
-
-          <!-- Generated Image Result -->
-          <div id="api-image-result" class="mt-4 hidden">
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
-                <i class="fa-solid fa-image text-amber-400"></i>
-                Generated Result
-              </span>
-              <div class="flex items-center gap-2">
-                <button id="btn-expand-image" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-slate-100 rounded text-[10px] font-semibold border border-slate-700/60 transition flex items-center gap-1">
-                  <i class="fa-solid fa-expand text-[9px]"></i> Expand
-                </button>
-                <button id="btn-download-image" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 rounded text-[10px] font-semibold border border-slate-700/60 transition flex items-center gap-1.5">
-                  <i class="fa-solid fa-download text-[9px]"></i> Download
-                </button>
-              </div>
-            </div>
-            <div class="rounded-lg overflow-hidden border border-slate-700/50 cursor-zoom-in" id="image-click-expand">
-              <img id="generated-image" src="" alt="Generated Image" class="w-full h-auto block generated-img-entrance">
-            </div>
-            <div class="mt-2 flex items-center justify-between text-[10px] text-slate-500 font-mono">
-              <span id="image-seed-info"></span>
-              <span id="image-finish-info"></span>
-            </div>
-          </div>
-
-        </section>
+        <!-- RIGHT COLUMN (1/3 width) — hidden on Workspace tab, content lives in other pages -->
+        <div class="lg:col-span-1 flex flex-col gap-6">
+        </div>
 
       </div>
-      
     </div>
+
+    <!-- ========== PAGE: Library ========== -->
+    <div id="page-library" class="hidden">
+
+      <!-- STYLE CONCEPT LIBRARY PANEL -->
+      <section class="glass-panel rounded-xl p-5 border border-purple-900/30 shadow-xl concept-library-glow" id="concept-library-panel">
+        <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-1 flex items-center gap-2">
+          <i class="fa-solid fa-layer-group text-purple-400"></i>
+          Style Concept Library
+          <span class="ml-auto text-[9px] font-bold px-2 py-0.5 rounded bg-purple-950/60 text-purple-300 border border-purple-600/30 uppercase">Persistent</span>
+        </h2>
+        <p class="text-[10px] text-slate-500 mb-3.5">レイヤー構造でスタイルコンセプトを永久保存・管理</p>
+
+        <!-- Save as Concept Button -->
+        <button id="btn-open-save-concept"
+                class="w-full py-2.5 mb-2 bg-gradient-to-r from-purple-700/70 to-indigo-700/60 hover:from-purple-600/80 hover:to-indigo-600/70 text-white rounded-lg transition text-xs font-bold border border-purple-500/30 hover:border-purple-400/50 shadow-md shadow-purple-900/20 flex items-center justify-center gap-2">
+          <i class="fa-solid fa-floppy-disk"></i>
+          Save Current as Concept
+        </button>
+
+        <!-- BOOKMARK button -->
+        <button id="btn-open-bookmark-modal">
+          <i class="fa-solid fa-bookmark"></i>
+          Bookmark
+        </button>
+
+        <!-- Category Filter Tabs -->
+        <div id="concept-category-tabs" class="category-tab-bar mb-3">
+          <!-- Dynamically populated by app.js -->
+        </div>
+
+        <!-- Concept Card List -->
+        <div id="concept-list-container" class="flex flex-col gap-2 pr-1">
+          <!-- Dynamically populated by app.js -->
+        </div>
+
+      </section>
+
+      <!-- TIME-LINE TREE PANEL (shown when tree button is clicked) -->
+      <section id="timeline-tree-panel" class="hidden glass-panel rounded-xl border border-cyan-900/30 shadow-xl timeline-tree-glow mt-6">
+        <div class="flex items-center justify-between p-4 border-b border-slate-800/60">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-code-branch text-cyan-400"></i>
+            <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400">Time-Line Tree</h2>
+            <span id="timeline-concept-name" class="text-xs text-cyan-300 font-semibold px-2 py-0.5 rounded bg-cyan-950/40 border border-cyan-600/30"></span>
+          </div>
+          <button onclick="closeTimelineTree()" class="text-slate-500 hover:text-slate-300 p-1 transition" title="Close">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <!-- Nav arrows + split layout -->
+        <div class="flex" style="min-height:280px">
+          <!-- LEFT: Vertical scroll nav -->
+          <div class="flex flex-col items-center py-3 px-2 border-r border-slate-800/50">
+            <button onclick="scrollTimeline(-1)" class="text-slate-500 hover:text-cyan-400 transition p-1 mb-1" title="Scroll up">
+              <i class="fa-solid fa-chevron-up text-xs"></i>
+            </button>
+            <div class="w-px flex-grow bg-slate-800/60 my-1"></div>
+            <button onclick="scrollTimeline(1)" class="text-slate-500 hover:text-cyan-400 transition p-1 mt-1" title="Scroll down">
+              <i class="fa-solid fa-chevron-down text-xs"></i>
+            </button>
+          </div>
+
+          <!-- CENTER: Timeline -->
+          <div id="timeline-list" class="flex flex-col py-3 px-3 gap-0 overflow-y-auto max-h-96 flex-shrink-0" style="width:220px">
+            <!-- Dynamically populated -->
+          </div>
+
+          <!-- RIGHT: Diff panel -->
+          <div class="flex-grow flex flex-col border-l border-slate-800/50">
+            <!-- Diff Tab Bar -->
+            <div id="diff-tab-bar" class="flex gap-1 px-3 pt-3 pb-2 border-b border-slate-800/40 flex-wrap">
+              <button class="diff-tab active" data-tab="note" onclick="switchDiffTab('note')">Note</button>
+              <button class="diff-tab" data-tab="weight" onclick="switchDiffTab('weight')">Weight</button>
+              <button class="diff-tab" data-tab="token" onclick="switchDiffTab('token')">Token</button>
+              <button class="diff-tab" data-tab="core" onclick="switchDiffTab('core')">Core</button>
+              <button class="diff-tab" data-tab="pattern" onclick="switchDiffTab('pattern')">Pattern</button>
+              <button class="diff-tab" data-tab="phase" onclick="switchDiffTab('phase')">Phase</button>
+            </div>
+            <!-- Diff Content Area -->
+            <div id="diff-content-area" class="flex-grow p-3 overflow-y-auto text-xs text-slate-400" style="min-height:200px;max-height:340px">
+              <p class="text-slate-600 text-center py-6">← コミット行の × をクリックして差分を表示</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- STYLE CONCEPT ARCHIVE PANEL -->
+      <section class="glass-panel rounded-xl p-5 border border-purple-900/30 shadow-xl concept-archive-glow mt-6" id="concept-archive-panel">
+        <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-1 flex items-center gap-2">
+          <i class="fa-solid fa-box-archive text-purple-400"></i>
+          Style Concept Archive
+          <span class="ml-auto text-[9px] font-bold px-2 py-0.5 rounded bg-purple-950/60 text-purple-300 border border-purple-600/30 uppercase">History</span>
+        </h2>
+        <p class="text-[10px] text-slate-500 mb-3.5">選択中コンセプトの過去のコミット履歴を管理・復元</p>
+
+        <!-- Archive List Container -->
+        <div id="concept-archive-list-container" class="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1">
+          <p class="text-slate-500 text-xs text-center py-4">コンセプトをロードするとコミット履歴が表示されます。</p>
+        </div>
+      </section>
+
+      <!-- PRESET MANAGER -->
+      <section class="glass-panel rounded-xl p-5 border border-slate-800/80 shadow-xl mt-6">
+        <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3.5 flex items-center gap-2">
+          <i class="fa-solid fa-boxes-packing text-cyan-400"></i>
+          Prompt Presets
+        </h2>
+
+        <!-- Save Current Setup Preset -->
+        <div class="flex items-center gap-2 mb-4">
+          <div class="flex-grow bg-slate-950/40 border border-slate-800/80 rounded-lg p-1.5 focus-within:border-cyan-500 transition duration-200">
+            <input type="text" 
+                   id="input-preset-name" 
+                   placeholder="New preset name..." 
+                   class="bg-transparent text-xs text-slate-200 w-full focus:outline-none px-1.5 py-0.5"
+            >
+          </div>
+          <button id="btn-save-preset" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 hover:text-cyan-300 rounded-lg text-xs font-semibold border border-slate-700/60 transition whitespace-nowrap">
+            Save Current
+          </button>
+        </div>
+
+        <!-- Preset list -->
+        <div id="preset-list-container" class="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1">
+          <!-- Dynamically populated by app.js -->
+        </div>
+
+        <!-- Import/Export buttons -->
+        <div class="mt-4 pt-4 border-t border-slate-800/80 flex items-center justify-between gap-3">
+          <!-- Import Preset file input trigger -->
+          <label class="w-1/2 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded text-[10px] font-semibold border border-slate-800 hover:border-slate-700 transition cursor-pointer text-center flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-file-import text-purple-400"></i>
+            Import JSON
+            <input type="file" id="file-import-presets" accept=".json" class="hidden">
+          </label>
+
+          <!-- Export Preset -->
+          <button id="btn-export-presets" class="w-1/2 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded text-[10px] font-semibold border border-slate-800 hover:border-slate-700 transition flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-file-export text-cyan-400"></i>
+            Export JSON
+          </button>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- ========== PAGE: Compile ========== -->
+    <div id="page-compile" class="hidden">
+
+      <!-- LIVE OUTPUT PANEL -->
+      <section class="glass-panel rounded-xl p-5 border border-slate-800/80 shadow-xl pulse-border-purple">
+        <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
+          <i class="fa-solid fa-wand-magic text-cyan-400"></i>
+          Live Prompts Compile
+        </h2>
+
+        <!-- Positive Prompt -->
+        <div class="mb-4">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-xs font-bold text-emerald-400 uppercase tracking-wide flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+              Positive Prompt
+            </span>
+            <div class="text-[10px] text-slate-400 font-mono">
+              <span id="pos-char-count">0</span> chars / <span id="pos-token-count">0</span> words
+            </div>
+          </div>
+
+          <div class="relative group">
+            <textarea id="output-pos-prompt" 
+                      readonly 
+                      rows="4" 
+                      placeholder="Positive prompt tokens will compile here automatically..." 
+                      class="w-full bg-slate-950/80 border border-slate-800/80 rounded-lg p-3 text-xs text-slate-300 font-mono focus:outline-none focus:border-slate-700 resize-none h-24"
+            ></textarea>
+            <button id="btn-copy-pos" 
+                    class="absolute right-2.5 bottom-2.5 px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-slate-100 rounded text-[10px] font-semibold border border-slate-700/50 hover:border-slate-500 transition flex items-center gap-1"
+                    title="Copy Positive Prompt"
+            >
+              <i class="fa-regular fa-copy"></i> Copy
+            </button>
+          </div>
+        </div>
+
+        <!-- Negative Prompt -->
+        <div class="mb-5">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-xs font-bold text-rose-400 uppercase tracking-wide flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+              Negative Prompt
+            </span>
+            <div class="text-[10px] text-slate-400 font-mono">
+              <span id="neg-char-count">0</span> chars / <span id="neg-token-count">0</span> words
+            </div>
+          </div>
+
+          <div class="relative group">
+            <textarea id="output-neg-prompt" 
+                      readonly 
+                      rows="3" 
+                      placeholder="Negative prompt tokens will compile here automatically..." 
+                      class="w-full bg-slate-950/80 border border-slate-800/80 rounded-lg p-3 text-xs text-slate-300 font-mono focus:outline-none focus:border-slate-700 resize-none h-20"
+            ></textarea>
+            <button id="btn-copy-neg" 
+                    class="absolute right-2.5 bottom-2.5 px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-slate-100 rounded text-[10px] font-semibold border border-slate-700/50 hover:border-slate-500 transition flex items-center gap-1"
+                    title="Copy Negative Prompt"
+            >
+              <i class="fa-regular fa-copy"></i> Copy
+            </button>
+          </div>
+        </div>
+
+        <!-- Quick Bundle Copy -->
+        <button id="btn-copy-combined" class="w-full py-2.5 bg-gradient-to-r from-purple-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 text-white rounded-lg transition text-xs font-bold shadow-lg shadow-cyan-500/10 flex items-center justify-center gap-2">
+          <i class="fa-solid fa-copy"></i>
+          Copy Combined Bundle (Positive + Negative)
+        </button>
+      </section>
+
+    </div>
+
+    <!-- ========== PAGE: Generate ========== -->
+    <div id="page-generate" class="hidden">
+
+      <!-- STABILITY AI API PANEL -->
+      <section class="glass-panel rounded-xl p-5 border border-amber-900/30 shadow-xl api-panel-glow" id="api-panel">
+        <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3.5 flex items-center gap-2">
+          <i class="fa-solid fa-bolt text-amber-400"></i>
+          Generate via Stability AI
+          <span class="ml-auto text-[9px] font-bold px-2 py-0.5 rounded bg-amber-950/60 text-amber-400 border border-amber-600/30 uppercase">Ultra</span>
+        </h2>
+
+        <!-- API Key Input -->
+        <div class="mb-4">
+          <label class="text-xs font-semibold text-slate-400 mb-1.5 block">API Key</label>
+          <div class="flex items-center gap-2">
+            <div class="flex-grow bg-slate-950/40 border border-slate-800/80 rounded-lg p-1.5 focus-within:border-amber-500/50 transition duration-200 flex items-center gap-1">
+              <input type="password"
+                     id="input-api-key"
+                     placeholder="sk-..."
+                     class="bg-transparent text-xs text-slate-200 w-full focus:outline-none px-1.5 py-0.5 font-mono"
+              >
+              <button id="btn-toggle-api-key" class="text-slate-500 hover:text-slate-300 px-1 transition" title="Show/Hide key">
+                <i class="fa-solid fa-eye text-xs" id="icon-eye"></i>
+              </button>
+            </div>
+            <button id="btn-save-api-key" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 rounded-lg text-xs font-semibold border border-slate-700/60 transition whitespace-nowrap">
+              Save Key
+            </button>
+          </div>
+          <p class="text-[10px] text-slate-500 mt-1.5 flex items-center gap-1">
+            <i class="fa-solid fa-lock text-[9px]"></i>
+            Stored in localStorage only — never sent anywhere except Stability AI.
+          </p>
+        </div>
+
+        <!-- Generation Parameters -->
+        <div class="grid grid-cols-2 gap-3 mb-4">
+          <!-- Aspect Ratio -->
+          <div>
+            <label for="select-aspect-ratio" class="text-xs font-semibold text-slate-400 mb-1.5 block">Aspect Ratio</label>
+            <select id="select-aspect-ratio" class="api-select w-full">
+              <option value="1:1">1:1 — Square</option>
+              <option value="16:9">16:9 — Landscape</option>
+              <option value="9:16">9:16 — Portrait</option>
+              <option value="3:2">3:2 — Photo</option>
+              <option value="2:3">2:3 — Portrait</option>
+              <option value="4:5">4:5 — Instagram</option>
+              <option value="5:4">5:4</option>
+              <option value="21:9">21:9 — Cinematic</option>
+              <option value="9:21">9:21 — Tall</option>
+            </select>
+          </div>
+
+          <!-- Output Format -->
+          <div>
+            <label for="select-output-format" class="text-xs font-semibold text-slate-400 mb-1.5 block">Output Format</label>
+            <select id="select-output-format" class="api-select w-full">
+              <option value="png">PNG</option>
+              <option value="jpeg">JPEG</option>
+              <option value="webp">WebP</option>
+            </select>
+          </div>
+
+          <!-- Seed -->
+          <div class="col-span-2">
+            <label for="input-seed" class="text-xs font-semibold text-slate-400 mb-1.5 flex items-center gap-1.5 block">
+              Seed
+              <span class="font-normal text-slate-500">— 0 = random</span>
+            </label>
+            <input type="number"
+                   id="input-seed"
+                   min="0"
+                   max="4294967294"
+                   value="0"
+                   placeholder="0 (random)"
+                   class="w-full bg-slate-950/40 border border-slate-800/80 rounded-lg px-2.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500/50 transition font-mono"
+            >
+          </div>
+        </div>
+
+        <!-- ======= NEW: Sampling Steps + CFG Scale + Sampler ======= -->
+        <div class="mb-4 p-3 rounded-xl bg-slate-950/30 border border-amber-900/20">
+          <p class="text-[10px] font-bold uppercase tracking-wider text-amber-500/70 mb-3 flex items-center gap-1.5">
+            <i class="fa-solid fa-sliders"></i> Diffusion Parameters
+          </p>
+
+          <!-- Sampling Steps -->
+          <div class="mb-3">
+            <div class="flex items-center justify-between mb-1">
+              <label for="input-sampling-steps" class="text-xs font-semibold text-slate-400">Sampling Steps</label>
+              <span id="label-sampling-steps" class="text-xs font-bold text-amber-400 font-mono">20</span>
+            </div>
+            <input type="range"
+                   id="input-sampling-steps"
+                   min="15" max="45" step="1" value="20"
+                   class="custom-slider slider-amber w-full"
+            >
+            <div class="flex justify-between text-[9px] text-slate-600 mt-0.5">
+              <span>15</span><span>45</span>
+            </div>
+          </div>
+
+          <!-- CFG Scale -->
+          <div class="mb-3">
+            <div class="flex items-center justify-between mb-1">
+              <label for="input-cfg-scale" class="text-xs font-semibold text-slate-400">CFG Scale</label>
+              <span id="label-cfg-scale" class="text-xs font-bold text-amber-400 font-mono">7.0</span>
+            </div>
+            <input type="range"
+                   id="input-cfg-scale"
+                   min="3" max="15" step="0.5" value="7"
+                   class="custom-slider slider-amber w-full"
+            >
+            <div class="flex justify-between text-[9px] text-slate-600 mt-0.5">
+              <span>3</span><span>15</span>
+            </div>
+          </div>
+
+          <!-- Sampler -->
+          <div>
+            <label for="select-sampler" class="text-xs font-semibold text-slate-400 mb-1.5 block">Sampler</label>
+            <select id="select-sampler" class="api-select w-full">
+              <option value="euler_a">Euler a</option>
+              <option value="dpm2m" selected>DPM++ 2M</option>
+              <option value="dpm2m_karras">DPM++ 2M Karras</option>
+              <option value="dpm_sde_karras">DPM++ SDE Karras</option>
+              <option value="unipc">UniPC</option>
+              <option value="ddim">DDIM</option>
+            </select>
+          </div>
+        </div>
+        <!-- ======= END: Diffusion Parameters ======= -->
+
+        <!-- Prompt Preview (read-only mini) -->
+        <div class="mb-4 p-3 rounded-lg bg-slate-950/40 border border-slate-800/60">
+          <p class="text-[10px] text-slate-500 mb-1 uppercase font-bold tracking-wider">Will send compiled prompt</p>
+          <p id="api-prompt-preview" class="text-[11px] text-slate-300 font-mono truncate">—</p>
+        </div>
+
+        <!-- Generate Button -->
+        <button id="btn-generate-image"
+                class="w-full py-3 bg-gradient-to-r from-amber-600 to-orange-500 hover:from-amber-500 hover:to-orange-400 text-white rounded-lg transition-all text-sm font-bold shadow-lg shadow-amber-600/20 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
+          <i class="fa-solid fa-wand-sparkles"></i>
+          Generate Image
+        </button>
+
+        <!-- API Status / Loading indicator -->
+        <div id="api-status" class="mt-3 hidden text-center">
+          <div class="flex items-center justify-center gap-2.5 text-amber-300 text-sm">
+            <div class="spinner-ring"></div>
+            <span id="api-status-text">Sending request…</span>
+          </div>
+        </div>
+
+        <!-- Generated Image Result -->
+        <div id="api-image-result" class="mt-4 hidden">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
+              <i class="fa-solid fa-image text-amber-400"></i>
+              Generated Result
+            </span>
+            <div class="flex items-center gap-2">
+              <button id="btn-expand-image" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-slate-100 rounded text-[10px] font-semibold border border-slate-700/60 transition flex items-center gap-1">
+                <i class="fa-solid fa-expand text-[9px]"></i> Expand
+              </button>
+              <button id="btn-download-image" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 rounded text-[10px] font-semibold border border-slate-700/60 transition flex items-center gap-1.5">
+                <i class="fa-solid fa-download text-[9px]"></i> Download
+              </button>
+            </div>
+          </div>
+          <div class="rounded-lg overflow-hidden border border-slate-700/50 cursor-zoom-in" id="image-click-expand">
+            <img id="generated-image" src="" alt="Generated Image" class="w-full h-auto block generated-img-entrance">
+          </div>
+          <div class="mt-2 flex items-center justify-between text-[10px] text-slate-500 font-mono">
+            <span id="image-seed-info"></span>
+            <span id="image-finish-info"></span>
+          </div>
+        </div>
+
+      </section>
+
+    </div>
+
+    <!-- ========== PAGE: Analysis ========== -->
+    <div id="page-analysis" class="hidden">
 
     <!-- =========================================================
          SEMANTIC DOMINANCE ANALYSIS PANEL (full-width)
@@ -486,19 +573,40 @@
               <span class="text-[9px] uppercase px-2 py-0.5 rounded bg-indigo-950/80 text-indigo-400 border border-indigo-500/30">Live</span>
             </h2>
             <p class="text-[10px] text-slate-500 mt-0.5">意味層の位相構造・拡散支配度・描画安定性をリアルタイム解析</p>
+            <!-- Analysis source badge (Requirement 7) -->
+            <span id="da-analysis-source-badge" class="da-source-badge da-source-local">💻 Local Analysis</span>
           </div>
         </div>
-        <button id="btn-run-analysis"
-                class="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-500 hover:from-indigo-500 hover:to-purple-400 text-white rounded-lg transition text-xs font-bold shadow-md shadow-indigo-600/20 flex items-center gap-2">
-          <i class="fa-solid fa-rotate"></i>
-          Re-Analyze
-        </button>
+        <div class="flex items-center gap-3">
+          <!-- Gemini API Key Input -->
+          <div class="flex items-center gap-2">
+            <div class="flex-grow bg-slate-950/40 border border-indigo-500/30 rounded-lg p-1.5 focus-within:border-indigo-400/60 transition duration-200 flex items-center gap-1">
+              <input type="password"
+                     id="input-gemini-api-key"
+                     placeholder="Gemini API Key..."
+                     class="bg-transparent text-[10px] text-slate-200 w-36 focus:outline-none px-1.5 py-0.5 font-mono"
+              >
+              <button id="btn-toggle-gemini-key" class="text-slate-500 hover:text-slate-300 px-1 transition" title="Show/Hide key">
+                <i class="fa-solid fa-eye text-[10px]" id="icon-eye-gemini"></i>
+              </button>
+            </div>
+            <button id="btn-save-gemini-key" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-indigo-400 hover:text-indigo-300 rounded text-[10px] font-semibold border border-slate-700/60 transition whitespace-nowrap">
+              Save
+            </button>
+          </div>
+
+          <button id="btn-run-analysis"
+                  class="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-500 hover:from-indigo-500 hover:to-purple-400 text-white rounded-lg transition text-xs font-bold shadow-md shadow-indigo-600/20 flex items-center gap-2">
+            <i class="fa-solid fa-rotate" id="icon-run-analysis"></i>
+            <span id="text-run-analysis">Re-Analyze</span>
+          </button>
+        </div>
       </div>
 
       <!-- EMPTY STATE (shown when no tokens exist) -->
       <div id="da-empty-state" class="da-empty-state hidden">
         <i class="fa-solid fa-magnifying-glass-chart"></i>
-        <p>ポジティブ/ネガティブフェーズにトークンを追加すると<br>自動的に解析が始まります。</p>
+        <p>ポジティブ/ネガティブフェーズにトークンを追加し、<br>「Re-Analyze」をクリックすると解析が始まります。</p>
       </div>
 
       <!-- ANALYSIS CONTENT (shown when tokens exist) -->
@@ -507,9 +615,14 @@
         <!-- Overall Status Banner -->
         <div id="da-overall-banner" class="overall-status-banner banner-inactive">
           <i id="da-banner-icon" class="fa-solid fa-circle-question overall-banner-icon"></i>
-          <div>
+          <div class="flex-grow">
             <div id="da-banner-title" class="overall-banner-title">解析待機中</div>
-            <div id="da-banner-desc" class="overall-banner-desc">フェーズにトークンを追加すると解析が開始されます。</div>
+            <div id="da-banner-desc" class="overall-banner-desc">「Re-Analyze」をクリックすると解析が開始されます。</div>
+            
+            <!-- Gemini LLM Dynamic Explanation -->
+            <div id="da-llm-explanation" class="hidden mt-3 p-3 bg-slate-950/50 rounded-lg border border-indigo-500/30 text-[11px] text-slate-300 leading-relaxed font-sans shadow-inner shadow-black/20">
+              <!-- LLM text injected here -->
+            </div>
           </div>
         </div>
 
@@ -768,6 +881,8 @@
       </div>
     </section>
 
+    </div><!-- /#page-analysis -->
+
   </main>
 
   <!-- Lightbox Modal for full-size image preview -->
@@ -893,10 +1008,60 @@
     </div>
   </div>
 
+  <!-- =============================================
+       BOOKMARK LIST MODAL
+       ============================================= -->
+  <div id="bookmark-list-modal" class="modal-overlay" onclick="handleBookmarkModalOverlayClick(event)">
+    <div class="modal-box">
+      <!-- Header -->
+      <div class="modal-header">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-600 to-teal-500 flex items-center justify-center">
+            <i class="fa-solid fa-bookmark text-white text-xs"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-extrabold text-slate-100 tracking-tight">Bookmarked Concepts</h3>
+            <p class="text-[10px] text-slate-500">ブックマーク済みのコンセプト一覧</p>
+          </div>
+        </div>
+        <button id="btn-close-bookmark-modal" class="text-slate-500 hover:text-slate-200 transition p-1 rounded-lg hover:bg-slate-800">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+      <!-- Body -->
+      <div class="modal-body" id="bookmark-modal-list">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+  </div>
+
+  <nav id="bottom-nav" class="fixed bottom-0 left-0 right-0 z-50 bg-slate-900 border-t border-slate-800 px-4 py-2 flex justify-around items-center">
+    <button data-tab="library" class="nav-tab-btn flex flex-col items-center gap-1 text-slate-400 hover:text-purple-400 transition px-3 py-1 rounded-lg hover:bg-slate-800/60">
+      <i class="fa-solid fa-book-open text-base"></i>
+      <span class="text-[10px] font-semibold uppercase tracking-wider">Library</span>
+    </button>
+    <button data-tab="workspace" class="nav-tab-btn flex flex-col items-center gap-1 text-cyan-400 px-3 py-1 rounded-lg bg-slate-800/60 transition">
+      <i class="fa-solid fa-pen text-base"></i>
+      <span class="text-[10px] font-semibold uppercase tracking-wider">Workspace</span>
+    </button>
+    <button data-tab="compile" class="nav-tab-btn flex flex-col items-center gap-1 text-slate-400 hover:text-cyan-400 transition px-3 py-1 rounded-lg hover:bg-slate-800/60">
+      <i class="fa-solid fa-message text-base"></i>
+      <span class="text-[10px] font-semibold uppercase tracking-wider">Compile</span>
+    </button>
+    <button data-tab="generate" class="nav-tab-btn flex flex-col items-center gap-1 text-slate-400 hover:text-amber-400 transition px-3 py-1 rounded-lg hover:bg-slate-800/60">
+      <i class="fa-solid fa-bolt text-base"></i>
+      <span class="text-[10px] font-semibold uppercase tracking-wider">Generate</span>
+    </button>
+    <button data-tab="analysis" class="nav-tab-btn flex flex-col items-center gap-1 text-slate-400 hover:text-indigo-400 transition px-3 py-1 rounded-lg hover:bg-slate-800/60">
+      <i class="fa-solid fa-flask text-base"></i>
+      <span class="text-[10px] font-semibold uppercase tracking-wider">Analysis</span>
+    </button>
+  </nav>
+
   <!-- Footer -->
   <footer class="w-full border-t border-slate-900 bg-slate-950/60 py-4 text-center mt-12">
     <p class="text-xs text-slate-500">
-      DiffuPrompt Studio © 2026. Made with Tailwind & Vanilla JavaScript. Host directly on GitHub Pages!
+      DiffuPrompt Studio © 2026. Made with Tailwind &amp; Vanilla JavaScript. Host directly on GitHub Pages!
     </p>
   </footer>
 
@@ -904,6 +1069,64 @@
   <div id="toast-container" class="fixed bottom-5 right-5 flex flex-col gap-3.5 z-50 pointer-events-none">
     <!-- Notifications populated dynamically -->
   </div>
+
+  <!-- Bottom Nav Tab Switching -->
+  <script>
+    (function () {
+      // Flag: prevent app.js initTabControl() from running duplicate setup
+      window.__tabControlInitialized = true;
+
+      const pages = ['library', 'workspace', 'compile', 'generate', 'analysis'];
+      const activeTabColors = {
+        library:   'text-purple-400',
+        workspace: 'text-cyan-400',
+        compile:   'text-cyan-400',
+        generate:  'text-amber-400',
+        analysis:  'text-indigo-400',
+      };
+
+      function switchTab(tab) {
+        // Hide all pages
+        pages.forEach(function (p) {
+          var el = document.getElementById('page-' + p);
+          if (el) el.classList.add('hidden');
+        });
+        // Show target page
+        var target = document.getElementById('page-' + tab);
+        if (target) target.classList.remove('hidden');
+
+        // Update nav button styles
+        document.querySelectorAll('.nav-tab-btn').forEach(function (btn) {
+          var btnTab = btn.getAttribute('data-tab');
+          var icon   = btn.querySelector('i');
+          var span   = btn.querySelector('span');
+          // Reset
+          btn.classList.remove(
+            'text-cyan-400', 'text-purple-400', 'text-amber-400', 'text-indigo-400', 'bg-slate-800/60'
+          );
+          btn.classList.add('text-slate-400');
+          if (icon) { icon.classList.remove('text-cyan-400', 'text-purple-400', 'text-amber-400', 'text-indigo-400'); icon.classList.add('text-slate-400'); }
+          if (span) { span.classList.remove('text-cyan-400', 'text-purple-400', 'text-amber-400', 'text-indigo-400'); span.classList.add('text-slate-400'); }
+          if (btnTab === tab) {
+            var activeColor = activeTabColors[tab] || 'text-cyan-400';
+            btn.classList.remove('text-slate-400');
+            btn.classList.add(activeColor, 'bg-slate-800/60');
+            if (icon) { icon.classList.remove('text-slate-400'); icon.classList.add(activeColor); }
+            if (span) { span.classList.remove('text-slate-400'); span.classList.add(activeColor); }
+          }
+        });
+      }
+
+      document.querySelectorAll('.nav-tab-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          switchTab(btn.getAttribute('data-tab'));
+        });
+      });
+
+      // Initialize on workspace
+      switchTab('workspace');
+    })();
+  </script>
 
   <!-- Core App Logic -->
   <script src="app.js"></script>
