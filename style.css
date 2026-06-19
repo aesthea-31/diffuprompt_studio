@@ -1839,7 +1839,20 @@ input[type="range"].custom-slider::-moz-range-thumb {
     0 -1px 0 0 rgba(168, 85, 247, 0.12),
     0 -8px 32px -4px rgba(0, 0, 0, 0.55);
 
-  position: fixed;
+  /* ── Sticky bottom fix ──────────────────────────────────────
+   * Always anchor to the bottom of the viewport, even when
+   * mobile browser chrome (address bar) resizes the window.
+   * Explicit bottom/left/right override any Tailwind utilities.
+   */
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 50;
+
+  /* iOS safe-area: keeps content above the home indicator */
+  padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+
   transition: box-shadow 0.3s ease;
 }
 
@@ -2283,4 +2296,215 @@ input[type="range"].custom-slider::-moz-range-thumb {
 .archive-restore-card:hover {
   border-color: rgba(168,85,247,0.45);
   background: rgba(168,85,247,0.12);
+}
+
+/* ============================================================
+   TOKEN WEIGHT INPUT & LABELS INLINE LAYOUT
+   ============================================================ */
+
+.token-weight-input {
+  width: 44px;
+  height: 22px;
+  background: rgba(2, 6, 23, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  color: #f8fafc;
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.token-weight-input:focus {
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 6px rgba(6, 182, 212, 0.3);
+  background: rgba(2, 6, 23, 0.85);
+}
+
+.token-weight-input:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Ensure smooth inline layout without wrapping */
+.flex.items-center.gap-3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+/* ============================================================
+   MOBILE LAYOUT FIXES
+   1. Symmetric side margins on <main>
+   2. Phase card overflow / delete-button clipping fix
+   ============================================================ */
+
+/**
+ * On mobile (<640px) the Tailwind class px-4 on <main> is
+ * already symmetric, but if the browser or any parent element
+ * shifts the box-model we enforce equal gutters explicitly.
+ * This also caps <main> to 100vw and prevents horizontal bleed.
+ */
+@media (max-width: 639px) {
+  main {
+    /* Symmetric horizontal padding — equal gutter on both sides */
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    /* Prevent any child from creating a horizontal scrollbar */
+    overflow-x: hidden;
+  }
+
+  /* Phase cards must never exceed their column width.
+     overflow:hidden (set by Tailwind 'overflow-hidden') is what
+     clips the delete/trash icon on the right edge — switch to
+     overflow:visible on mobile so the button shadow / tap area
+     is fully accessible. */
+  [data-phase-id] {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: visible !important;
+  }
+
+  /* Phase header row: flex-wrap is already set in HTML
+     ('flex-wrap items-center justify-between'), but the gap
+     can still push the controls row off-screen on very narrow
+     viewports. Tighten the gap and let it wrap early. */
+  [data-phase-id] > div:first-child {
+    gap: 0.5rem;
+  }
+
+  /* Controls cluster (color swatches + up/down + trash icon):
+     wrap rather than overflow, and keep min-width:0 so flexbox
+     does not reserve space beyond the viewport edge. */
+  [data-phase-id] > div:first-child > div:last-child {
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  /* Token badge rows: guard against text overflow */
+  .token-badge {
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  .token-badge > div {
+    min-width: 0;
+  }
+}
+
+/* Phase差分の横並び化と配置調整 */
+.flex-row.flex-wrap.items-center.gap-1\.5 {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+/* ============================================================
+   COMMIT DETAIL OVERLAY & GLASSMORPHIC MODAL STYLES
+   ============================================================ */
+.glassmorphic-modal {
+  background: rgba(12, 20, 36, 0.75) !important;
+  backdrop-filter: blur(18px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(180%) !important;
+  border: 1px solid rgba(168, 85, 247, 0.25) !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 15px rgba(168, 85, 247, 0.2) !important;
+}
+
+.tl-commit-btn {
+  background: transparent;
+  border: none;
+  color: #c084fc;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  outline: none;
+  transition: color 0.15s ease, text-shadow 0.15s ease;
+}
+.tl-commit-btn:hover {
+  color: #d8b4fe;
+  text-shadow: 0 0 8px rgba(192, 132, 252, 0.4);
+}
+
+.detail-phase-bar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 80px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid transparent;
+}
+
+.detail-phase-bar.pos {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.25);
+  color: #a7f3d0;
+}
+.detail-phase-bar.pos:hover {
+  background: rgba(16, 185, 129, 0.16);
+  border-color: rgba(16, 185, 129, 0.45);
+}
+.detail-phase-bar.pos.active {
+  background: rgba(16, 185, 129, 0.25);
+  border-color: rgba(16, 185, 129, 0.75);
+  color: #34d399;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.25);
+}
+
+.detail-phase-bar.neg {
+  background: rgba(244, 63, 94, 0.08);
+  border-color: rgba(244, 63, 94, 0.25);
+  color: #fecdd3;
+}
+.detail-phase-bar.neg:hover {
+  background: rgba(244, 63, 94, 0.16);
+  border-color: rgba(244, 63, 94, 0.45);
+}
+.detail-phase-bar.neg.active {
+  background: rgba(244, 63, 94, 0.25);
+  border-color: rgba(244, 63, 94, 0.75);
+  color: #fb7185;
+  box-shadow: 0 0 10px rgba(244, 63, 94, 0.25);
+}
+
+.overlay-token-row {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: background 0.2s, border-color 0.2s;
+}
+.overlay-token-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+@media (max-width: 639px) {
+  .modal-box.glassmorphic-modal {
+    max-width: 94vw !important;
+    margin: 0 auto;
+  }
+}
+
+/* REARRANGEMENT Modal & Sub-tabs Styles */
+.rearrangement-pat-btn {
+  position: relative;
+  transition: all 0.2s ease;
+}
+.rearrangement-pat-btn:hover {
+  transform: translateX(4px);
+}
+#rearrangement-modal-content {
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
 }

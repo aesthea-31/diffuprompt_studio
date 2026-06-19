@@ -434,10 +434,55 @@ function computeTokenConflicts() {
 
   return conflictMap;
 }
+function parseTokenWeightIfNeeded(token) {
+  if (!token || !token.text) return;
+  let term = token.text.trim();
+  let weight = token.weight !== undefined && token.weight !== null ? token.weight : 1.0;
+  let cleanText = term;
+
+  // Pattern: (text:1.23)
+  let explicitWeightMatch = term.match(/^[\(\[]*(.*?)\s*:\s*([0-9.]+)\s*[\)\]]*$/);
+  if (explicitWeightMatch) {
+    cleanText = explicitWeightMatch[1].trim();
+    weight = parseFloat(explicitWeightMatch[2]);
+  } else {
+    // Count leading/trailing parentheses or brackets
+    let leadingP = 0;
+    let trailingP = 0;
+    while (term[leadingP] === '(') leadingP++;
+    while (term[term.length - 1 - trailingP] === ')') trailingP++;
+    
+    let pCount = Math.min(leadingP, trailingP);
+    if (pCount > 0) {
+      cleanText = term.substring(pCount, term.length - pCount).trim();
+      weight = Math.round(Math.pow(1.1, pCount) * 100) / 100;
+    } else {
+      // Brackets (reduce weight)
+      let leadingB = 0;
+      let trailingB = 0;
+      while (term[leadingB] === '[') leadingB++;
+      while (term[term.length - 1 - trailingB] === ']') trailingB++;
+      
+      let bCount = Math.min(leadingB, trailingB);
+      if (bCount > 0) {
+        cleanText = term.substring(bCount, term.length - bCount).trim();
+        weight = Math.round(Math.pow(0.9, bCount) * 100) / 100;
+      }
+    }
+  }
+
+  // Clean up any remaining brackets/parentheses inside if they slipped through
+  cleanText = cleanText.replace(/[()\[\]]/g, '').trim();
+  cleanText = cleanText.replace(/:[0-9.]+$/, '').trim();
+
+  token.text = cleanText;
+  token.weight = weight;
+}
 
 function ensurePhaseStructure(phase) {
   if (phase.isNegative) {
     if (!phase.tokens) phase.tokens = [];
+    phase.tokens.forEach(parseTokenWeightIfNeeded);
   } else {
     if (!phase.patterns || phase.patterns.length === 0) {
       phase.patterns = [
@@ -451,9 +496,14 @@ function ensurePhaseStructure(phase) {
     if (phase.activePatternIndex === undefined || phase.activePatternIndex === null) {
       phase.activePatternIndex = 0;
     }
+    phase.patterns.forEach(pat => {
+      if (!pat.tokens) pat.tokens = [];
+      pat.tokens.forEach(parseTokenWeightIfNeeded);
+    });
   }
   return phase;
 }
+
 
 function getPhaseTokens(phase) {
   if (phase.isNegative) {
@@ -480,8 +530,8 @@ function getPhaseTokens(phase) {
 }
 
 // Initialize Application
-document.addEventListener("DOMContentLoaded", () => {
-  loadLocalStorage();
+document.addEventListener("DOMContentLoaded", async () => {
+  await loadPresetsFromFirestore();
   state.phases.forEach(ensurePhaseStructure);
   renderApp();
   setupGlobalEvents();
@@ -568,22 +618,64 @@ function initTabControl() {
   switchTab('workspace');
 }
 
-// Load Local Storage presets
-function loadLocalStorage() {
-  const savedPresets = localStorage.getItem("diffu_presets");
-  if (savedPresets) {
-    try {
-      state.presets = JSON.parse(savedPresets);
-    } catch (e) {
-      console.error("Failed to parse presets", e);
-      state.presets = [];
-    }
+// Load presets from Firestore presets collection
+async function loadPresetsFromFirestore() {
+  if (!window.db || !window.firestore) {
+    console.warn("Firebase/Firestore is not initialized yet. Skipping cloud load.");
+    state.presets = [];
+    return;
+  }
+  const { collection, getDocs } = window.firestore;
+  const db = window.db;
+
+  try {
+    const presetsCol = collection(db, "presets");
+    const snapshot = await getDocs(presetsCol);
+    state.presets = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    console.log("Presets successfully loaded from Firestore:", state.presets);
+  } catch (e) {
+    console.error("Failed to load presets from Firestore:", e);
+    state.presets = [];
   }
 }
 
-// Save presets to Local Storage
-function savePresetsToLocalStorage() {
-  localStorage.setItem("diffu_presets", JSON.stringify(state.presets));
+// Save presets to Firestore presets collection
+async function savePresetsToFirestore() {
+  if (!window.db || !window.firestore) {
+    console.warn("Firebase/Firestore is not initialized yet. Skipping cloud sync.");
+    return;
+  }
+  const { doc, setDoc, deleteDoc, collection, getDocs } = window.firestore;
+  const db = window.db;
+
+  try {
+    // 1. Retrieve all existing presets in Firestore to find deleted ones
+    const presetsCol = collection(db, "presets");
+    const snapshot = await getDocs(presetsCol);
+    const existingIds = snapshot.docs.map(d => d.id);
+
+    // 2. Identify and delete presets that are no longer in local state.presets
+    const currentIds = state.presets.map(p => p.id);
+    const idsToDelete = existingIds.filter(id => !currentIds.includes(id));
+    for (const id of idsToDelete) {
+      const presetRef = doc(db, "presets", id);
+      await deleteDoc(presetRef);
+    }
+
+    // 3. Save / update all current presets from local state.presets in Firestore
+    for (const preset of state.presets) {
+      const presetId = preset.id || `preset_${Date.now()}`;
+      const presetRef = doc(db, "presets", presetId);
+      await setDoc(presetRef, preset);
+    }
+
+    console.log("Presets successfully saved/synced to Firestore.");
+  } catch (error) {
+    console.error("Error saving presets to Firestore: ", error);
+  }
 }
 
 // Global Event Listeners
@@ -653,7 +745,7 @@ function setupGlobalEvents() {
   });
 
   // Preset Save
-  document.getElementById("btn-save-preset").addEventListener("click", () => {
+  document.getElementById("btn-save-preset").addEventListener("click", async () => {
     const input = document.getElementById("input-preset-name");
     const name = input.value.trim();
     if (!name) {
@@ -669,7 +761,7 @@ function setupGlobalEvents() {
     };
     
     state.presets.push(newPreset);
-    savePresetsToLocalStorage();
+    await savePresetsToFirestore();
     input.value = "";
     showToast(`Preset "${name}" saved!`);
     renderApp();
@@ -714,12 +806,12 @@ function setupGlobalEvents() {
     if (!file) return;
     
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const imported = JSON.parse(event.target.result);
         if (Array.isArray(imported)) {
           state.presets = [...state.presets, ...imported];
-          savePresetsToLocalStorage();
+          await savePresetsToFirestore();
           showToast(`Imported ${imported.length} presets!`);
           renderApp();
         } else {
@@ -868,7 +960,7 @@ function parseRawPrompt(rawText) {
       let cleanText = term;
       
       // Pattern: (text:1.23)
-      let explicitWeightMatch = term.match(/^\((.+):([0-9.]+)\)$/);
+      let explicitWeightMatch = term.match(/^[\(\[]*(.*?)\s*:\s*([0-9.]+)\s*[\)\]]*$/);
       if (explicitWeightMatch) {
         cleanText = explicitWeightMatch[1].trim();
         weight = parseFloat(explicitWeightMatch[2]);
@@ -900,6 +992,7 @@ function parseRawPrompt(rawText) {
       
       // Fallback clean text: strip extra brackets/parentheses inside if they slipped through
       cleanText = cleanText.replace(/[()\[\]]/g, '').trim();
+      cleanText = cleanText.replace(/:[0-9.]+$/, '').trim();
       if (!cleanText) continue;
       
       parsed.push({
@@ -963,7 +1056,8 @@ function compilePrompts() {
       if (weight === 1.0) {
         phaseStrings.push(term);
       } else {
-        phaseStrings.push(`(${term}:${weight.toFixed(2)})`);
+        let weightStr = weight.toFixed(3).replace(/\.?0+$/, "");
+        phaseStrings.push(`(${term}:${weightStr})`);
       }
     });
     
@@ -1065,14 +1159,14 @@ function renderPresets() {
   });
   
   container.querySelectorAll(".btn-delete-preset").forEach(btn => {
-    btn.addEventListener("click", (e) => {
+    btn.addEventListener("click", async (e) => {
       e.stopPropagation();
       const id = btn.getAttribute("data-id");
       const index = state.presets.findIndex(p => p.id === id);
       if (index !== -1) {
         const name = state.presets[index].name;
         state.presets.splice(index, 1);
-        savePresetsToLocalStorage();
+        await savePresetsToFirestore();
         showToast(`Preset "${name}" deleted.`, "warning");
         renderApp();
       }
@@ -1172,6 +1266,86 @@ window.savePhaseTitle = function(phaseId) {
   renderApp();
 };
 
+// ============================================================
+// GEMINI ANALYSIS BINDINGS
+// ============================================================
+
+/**
+ * _piaBindings
+ * Gemini解析結果をトークンUIにバインドするための正規化ストア。
+ * renderPhases() が参照し、バッジを付与する。
+ *
+ * 構造:
+ *   tokenBadges : Map<tokenTextLower, { type, reason }[]>
+ *     type: 'geminiConflict' | 'dangerPos' | 'dangerNeg' | 'layerOrderToken'
+ *   phaseFlags  : Map<phaseNameLower, Set<'layerOrder'|'phaseHierarchy'>>
+ */
+window._piaBindings = {
+  tokenBadges: new Map(), // key: token text (lowercase)
+  phaseFlags:  new Map(), // key: phase name (lowercase)
+};
+
+/**
+ * applyGeminiAnalysisBindings
+ * Gemini解析結果(result)を_piaBindingsに正規化して格納し、
+ * renderPhases()を呼び出してUIを更新する。
+ *
+ * @param {Object} result - fetchGeminiPromptAnalysis() の戻り値
+ */
+function applyGeminiAnalysisBindings(result) {
+  const tb = new Map();
+  const pf = new Map();
+
+  function addTokenBadge(textRaw, badge) {
+    if (!textRaw) return;
+    const key = String(textRaw).toLowerCase().trim();
+    if (!tb.has(key)) tb.set(key, []);
+    tb.get(key).push(badge);
+  }
+
+  function addPhaseFlag(phaseNameRaw, flag) {
+    if (!phaseNameRaw) return;
+    const key = String(phaseNameRaw).toLowerCase().trim();
+    if (!pf.has(key)) pf.set(key, new Set());
+    pf.get(key).add(flag);
+  }
+
+  // 1. Semantic Conflicts → geminiConflict バッジ
+  (result.semanticConflicts || []).forEach(c => {
+    const reason = c.description || '';
+    if (c.tokenA) addTokenBadge(c.tokenA, { type: 'geminiConflict', reason });
+    if (c.tokenB) addTokenBadge(c.tokenB, { type: 'geminiConflict', reason });
+  });
+
+  // 2. Danger Positives → dangerPos バッジ
+  (result.dangerPositives || []).forEach(d => {
+    addTokenBadge(d.text || d.token, { type: 'dangerPos', reason: d.reason || '' });
+  });
+
+  // 3. Danger Negatives → dangerNeg バッジ
+  (result.dangerNegatives || []).forEach(d => {
+    addTokenBadge(d.text || d.token, { type: 'dangerNeg', reason: d.reason || '' });
+  });
+
+  // 4. Layer Order — Token Ordering → layerOrderToken バッジ
+  (result.incorrectTokenOrdering || []).forEach(o => {
+    addTokenBadge(o.token, { type: 'layerOrderToken', reason: `Move: ${o.currentPhase} → ${o.suggestedPhase}. ${o.reason || ''}` });
+    // 現在のフェーズにもフラグ
+    if (o.currentPhase) addPhaseFlag(o.currentPhase, 'layerOrder');
+  });
+
+  // 5. Layer Order — Phase Hierarchy → phaseHierarchy フラグ
+  (result.phaseHierarchyProblems || []).forEach(p => {
+    if (p.phase) addPhaseFlag(p.phase, 'phaseHierarchy');
+  });
+
+  window._piaBindings.tokenBadges = tb;
+  window._piaBindings.phaseFlags  = pf;
+
+  // UIを再描画して反映
+  renderPhases();
+}
+
 // Render Phases & Tokens
 function renderPhases() {
   // ENFORCE STRICT ORDER: Positive phases always above Negative phases
@@ -1205,11 +1379,21 @@ function renderPhases() {
   }
   
   const conflictMap = computeTokenConflicts();
+  const piaBindings = window._piaBindings || { tokenBadges: new Map(), phaseFlags: new Map() };
   
   state.phases.forEach((phase, phaseIndex) => {
     const cMap = COLOR_CLASSES[phase.color] || COLOR_CLASSES.purple;
     const isFirst = phaseIndex === 0 || (phase.isNegative && phaseIndex > 0 && !state.phases[phaseIndex - 1].isNegative);
     const isLast = phaseIndex === state.phases.length - 1 || (!phase.isNegative && phaseIndex + 1 < state.phases.length && state.phases[phaseIndex + 1].isNegative);
+
+    // Phase-level layer order / hierarchy flags from Gemini
+    const phaseNameKey = phase.name.toLowerCase().trim();
+    const phaseGeminiFlags = piaBindings.phaseFlags.get(phaseNameKey) || new Set();
+    const phaseLayerOrderBadgeHtml = phaseGeminiFlags.size > 0
+      ? `<span class="pia-phase-badge-layer" title="Gemini: Layer Order / Phase Hierarchy issue detected">
+           <i class="fa-solid fa-layer-group text-[9px]"></i> Layer Issue
+         </span>`
+      : '';
     
     const phaseEl = document.createElement("div");
     phaseEl.className = `glass-panel rounded-xl overflow-hidden border ${cMap.border} ${phase.isActive ? '' : 'opacity-60'} transition-all duration-300`;
@@ -1229,9 +1413,26 @@ function renderPhases() {
         const isCore = !!tok.isCore;
         const conflictInfo = conflictMap.get(tok.id);
 
+        // ── Gemini binding lookup (by token text, case-insensitive) ──────
+        const tokKey = tok.text.toLowerCase().trim();
+        const geminiEntries = piaBindings.tokenBadges.get(tokKey) || [];
+        // Priority: Core blocks geminiConflict; dangerPos only on positive phase; dangerNeg only on negative
+        const effectiveGeminiEntries = geminiEntries.filter(e => {
+          if (e.type === 'geminiConflict' && isCore) return false; // Coreがある場合は競合バッジを出さない
+          if (e.type === 'dangerPos' && phase.isNegative) return false;
+          if (e.type === 'dangerNeg' && !phase.isNegative) return false;
+          return true;
+        });
+        // 最高優先度のGeminiバッジを決定
+        const hasGeminiConflict     = effectiveGeminiEntries.some(e => e.type === 'geminiConflict');
+        const hasGeminiDangerPos    = effectiveGeminiEntries.some(e => e.type === 'dangerPos');
+        const hasGeminiDangerNeg    = effectiveGeminiEntries.some(e => e.type === 'dangerNeg');
+        const hasGeminiLayerOrder   = effectiveGeminiEntries.some(e => e.type === 'layerOrderToken');
+        const hasAnyGeminiBadge = hasGeminiConflict || hasGeminiDangerPos || hasGeminiDangerNeg || hasGeminiLayerOrder;
+
         if (tok.isActive) {
           if (conflictInfo) {
-            // Override with warning styles
+            // Override with warning styles (local conflict map)
             if (conflictInfo.type === 'pos') {
               bgStyle = `background: rgba(234, 179, 8, 0.15)`;
               borderStyle = `border-amber-400/80`;
@@ -1241,6 +1442,22 @@ function renderPhases() {
               borderStyle = `border-orange-500/80`;
               glowStyle = `token-conflict-danger-glow`;
             }
+          } else if (hasGeminiConflict) {
+            bgStyle = `background: rgba(234, 179, 8, 0.12)`;
+            borderStyle = `border-amber-500/70`;
+            glowStyle = `token-conflict-warn-glow`;
+          } else if (hasGeminiDangerPos) {
+            bgStyle = `background: rgba(249, 115, 22, 0.12)`;
+            borderStyle = `border-orange-500/70`;
+            glowStyle = `token-conflict-danger-glow`;
+          } else if (hasGeminiDangerNeg) {
+            bgStyle = `background: rgba(239, 68, 68, 0.12)`;
+            borderStyle = `border-red-500/70`;
+            glowStyle = `shadow-[0_0_8px_rgba(239,68,68,0.25)]`;
+          } else if (hasGeminiLayerOrder) {
+            bgStyle = `background: rgba(168, 85, 247, 0.10)`;
+            borderStyle = `border-purple-400/60`;
+            glowStyle = `shadow-[0_0_8px_rgba(168,85,247,0.2)]`;
           } else if (isCore) {
             // Core token — golden priority style overrides weight coloring
             bgStyle = `background: rgba(234, 179, 8, 0.08)`;
@@ -1274,11 +1491,40 @@ function renderPhases() {
         const isTokFirst = tokIndex === 0;
         const isTokLast = tokIndex === tokens.length - 1;
 
-        // Conflict badge
+        // ── Badge HTML assembly ─────────────────────────────────────────
+        // 1. Local conflict badge (static SEMANTIC_CONFLICT_RULES ベース)
         let conflictBadgeHtml = '';
-        if (conflictInfo) {
+        if (conflictInfo && !isCore) {
           const badgeClass = conflictInfo.type === 'pos' ? 'token-conflict-badge' : 'token-conflict-badge is-danger';
           conflictBadgeHtml = `<span class="${badgeClass}" title="${conflictInfo.reason}">⚠ ${conflictInfo.type === 'pos' ? '競合' : '危険'}</span>`;
+        }
+
+        // 2. Gemini: ⚠競合 (Semantic Conflict) — Coreには付与しない
+        let geminiConflictBadgeHtml = '';
+        if (hasGeminiConflict && !conflictInfo) {
+          const r = effectiveGeminiEntries.find(e => e.type === 'geminiConflict')?.reason || '';
+          geminiConflictBadgeHtml = `<span class="token-conflict-badge" title="Gemini: ${r}">⚠ 競合</span>`;
+        }
+
+        // 3. Gemini: ⚠不安定 (Danger Positive)
+        let geminiDangerPosBadgeHtml = '';
+        if (hasGeminiDangerPos) {
+          const r = effectiveGeminiEntries.find(e => e.type === 'dangerPos')?.reason || '';
+          geminiDangerPosBadgeHtml = `<span class="pia-badge-danger-pos" title="Gemini: ${r}">⚠ 不安定</span>`;
+        }
+
+        // 4. Gemini: ⚠危険 (Danger Negative)
+        let geminiDangerNegBadgeHtml = '';
+        if (hasGeminiDangerNeg) {
+          const r = effectiveGeminiEntries.find(e => e.type === 'dangerNeg')?.reason || '';
+          geminiDangerNegBadgeHtml = `<span class="pia-badge-danger-neg" title="Gemini: ${r}">⚠ 危険</span>`;
+        }
+
+        // 5. Gemini: ⬆Layer (Layer Order Token)
+        let geminiLayerBadgeHtml = '';
+        if (hasGeminiLayerOrder) {
+          const r = effectiveGeminiEntries.find(e => e.type === 'layerOrderToken')?.reason || '';
+          geminiLayerBadgeHtml = `<span class="pia-badge-layer-token" title="Gemini: ${r}"><i class="fa-solid fa-layer-group text-[8px]"></i> Layer</span>`;
         }
 
         // Core mark button (only for positive phases)
@@ -1293,7 +1539,7 @@ function renderPhases() {
 
         return `
           <div class="token-badge flex flex-col md:flex-row md:items-center justify-between p-3 rounded-lg border ${borderStyle} ${glowStyle} transition-all duration-200 gap-3" style="${bgStyle}">
-            <div class="flex items-center gap-2.5">
+            <div class="flex items-center gap-2.5 flex-wrap">
               <!-- Active toggle -->
               <input type="checkbox" 
                      class="checkbox-cyber w-4.5 h-4.5" 
@@ -1305,11 +1551,17 @@ function renderPhases() {
               <!-- Core mark indicator -->
               ${isCore && !phase.isNegative ? '<span class="token-core-badge"><i class="fa-solid fa-star"></i> CORE</span>' : ''}
 
-              <!-- Conflict badge -->
+              <!-- Local conflict badge (SEMANTIC_CONFLICT_RULES ベース) -->
               ${conflictBadgeHtml}
 
+              <!-- Gemini badges -->
+              ${geminiConflictBadgeHtml}
+              ${geminiDangerPosBadgeHtml}
+              ${geminiDangerNegBadgeHtml}
+              ${geminiLayerBadgeHtml}
+
               <!-- Token name -->
-              <span class="text-sm font-medium ${tok.isActive ? (isCore ? 'text-amber-100' : 'text-slate-200') : 'text-slate-500 line-through'} break-all select-all">
+              <span class="text-sm font-medium ${tok.isActive ? (isCore ? 'text-amber-100' : (hasAnyGeminiBadge ? 'text-slate-100' : 'text-slate-200')) : 'text-slate-500 line-through'} break-all select-all">
                 ${tok.text}
               </span>
             </div>
@@ -1317,9 +1569,15 @@ function renderPhases() {
             <div class="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
               <!-- Slider + Weight Label -->
               <div class="flex items-center gap-3 flex-grow md:flex-grow-0">
-                <span class="mono-font text-xs font-semibold w-12 text-right ${tok.isActive ? cMap.accent : 'text-slate-600'}">
-                  ${parseFloat(tok.weight).toFixed(2)}x
-                </span>
+                <input type="text" 
+                       value="${parseFloat(tok.weight).toFixed(3).replace(/\.?0+$/, '')}" 
+                       class="token-weight-input mono-font text-xs text-center rounded bg-slate-950/60 border border-slate-700/60 text-slate-200 focus:outline-none focus:border-cyan-500 w-12 py-0.5"
+                       oninput="this.value = this.value.replace(/[^0-9.]/g, '')"
+                       onkeydown="if(event.key === 'Enter') { updateTokenWeightFromText('${phase.id}', '${tok.id}', this.value); this.blur(); }"
+                       onblur="updateTokenWeightFromText('${phase.id}', '${tok.id}', this.value)"
+                       id="input-weight-${phase.id}-${tok.id}"
+                       ${tok.isActive ? '' : 'disabled'}
+                >
                 
                 <input type="range" 
                        min="0.1" 
@@ -1327,9 +1585,15 @@ function renderPhases() {
                        step="0.05" 
                        value="${tok.weight}" 
                        class="custom-slider ${cMap.slider} w-24 md:w-28" 
+                       id="slider-${phase.id}-${tok.id}"
                        ${tok.isActive ? '' : 'disabled'}
                        oninput="updateTokenWeight('${phase.id}', '${tok.id}', this.value)"
                 >
+                
+                <span class="mono-font text-xs font-semibold w-12 text-left ${tok.isActive ? cMap.accent : 'text-slate-600'}"
+                      id="weight-label-${phase.id}-${tok.id}">
+                  ${parseFloat(tok.weight).toFixed(3).replace(/\.?0+$/, '')}x
+                </span>
                 
                 <button class="text-[10px] px-1.5 py-0.5 rounded border border-slate-700/60 bg-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-500 transition tooltip" 
                         data-tooltip="Reset to 1.0"
@@ -1406,7 +1670,7 @@ function renderPhases() {
     phaseEl.innerHTML = `
       <!-- Phase Header -->
       <div class="flex flex-wrap items-center justify-between p-4 border-b border-slate-800/70 bg-slate-900/40 gap-3">
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-3 flex-wrap">
           <!-- Active checkbox -->
           <input type="checkbox" 
                  class="checkbox-cyber w-4.5 h-4.5" 
@@ -1434,6 +1698,9 @@ function renderPhases() {
           >
             ${phase.isNegative ? 'Negative' : 'Positive'}
           </button>
+
+          <!-- Gemini Phase-level Layer Order badge -->
+          ${phaseLayerOrderBadgeHtml}
         </div>
         
         <!-- Controls -->
@@ -1523,13 +1790,15 @@ window.handleAddTokenButton = function(phaseId) {
   
   const tokens = getPhaseTokens(phase);
   newTokensText.forEach(text => {
-    tokens.push({
+    const tok = {
       id: "tok_" + Math.random().toString(36).substr(2, 9),
       text: text,
       weight: 1.0,
       isActive: true,
       isCore: false
-    });
+    };
+    parseTokenWeightIfNeeded(tok);
+    tokens.push(tok);
   });
   
   input.value = "";
@@ -1608,6 +1877,27 @@ window.toggleTokenActive = function(phaseId, tokenId) {
   }
 };
 
+function syncActiveConceptLayers() {
+  if (state.activeConcept) {
+    const concept = state.concepts.find(c => c.id === state.activeConcept);
+    if (concept) {
+      const layersMap = {};
+      let phaseIndexCounter = 0;
+      state.phases.forEach(ph => {
+        const layerName = ph._layerName || "medium";
+        if (!layersMap[layerName]) layersMap[layerName] = [];
+        
+        let phaseCopy = JSON.parse(JSON.stringify(ph));
+        ensurePhaseStructure(phaseCopy);
+        phaseCopy._originalIndex = phaseIndexCounter++;
+        layersMap[layerName].push(phaseCopy);
+      });
+      concept.layers = layersMap;
+      saveConceptsToStorage();
+    }
+  }
+}
+
 window.updateTokenWeight = function(phaseId, tokenId, newWeight) {
   const phase = state.phases.find(p => p.id === phaseId);
   if (!phase) return;
@@ -1615,15 +1905,59 @@ window.updateTokenWeight = function(phaseId, tokenId, newWeight) {
   const tokens = getPhaseTokens(phase);
   const token = tokens.find(t => t.id === tokenId);
   if (token) {
-    token.weight = parseFloat(newWeight);
+    const valFloat = parseFloat(newWeight);
+    token.weight = valFloat;
     updateOutput();
     
-    // Dynamically update the slider text label without full re-render for performance
-    // and smoothness during active drag
-    const sliderLabel = document.querySelector(`[data-phase-id="${phaseId}"] [oninput*="${tokenId}"]`).previousElementSibling;
-    if (sliderLabel) {
-      sliderLabel.innerText = parseFloat(newWeight).toFixed(2) + "x";
+    const weightStr = valFloat.toFixed(3).replace(/\.?0+$/, "");
+    
+    const label = document.getElementById(`weight-label-${phaseId}-${tokenId}`);
+    if (label) {
+      label.innerText = weightStr + "x";
     }
+    
+    const input = document.getElementById(`input-weight-${phaseId}-${tokenId}`);
+    if (input) {
+      input.value = weightStr;
+    }
+    syncActiveConceptLayers();
+  }
+};
+
+window.updateTokenWeightFromText = function(phaseId, tokenId, textValue) {
+  const phase = state.phases.find(p => p.id === phaseId);
+  if (!phase) return;
+  
+  const tokens = getPhaseTokens(phase);
+  const token = tokens.find(t => t.id === tokenId);
+  if (token) {
+    let parsed = parseFloat(textValue);
+    if (isNaN(parsed)) {
+      parsed = token.weight;
+    }
+    
+    const clamped = Math.max(0.1, Math.min(2.0, parsed));
+    token.weight = clamped;
+    
+    const weightStr = clamped.toFixed(3).replace(/\.?0+$/, "");
+    
+    const slider = document.getElementById(`slider-${phaseId}-${tokenId}`);
+    if (slider) {
+      slider.value = clamped;
+    }
+    
+    const label = document.getElementById(`weight-label-${phaseId}-${tokenId}`);
+    if (label) {
+      label.innerText = weightStr + "x";
+    }
+    
+    const input = document.getElementById(`input-weight-${phaseId}-${tokenId}`);
+    if (input) {
+      input.value = weightStr;
+    }
+    
+    updateOutput();
+    syncActiveConceptLayers();
   }
 };
 
@@ -1635,6 +1969,7 @@ window.resetTokenWeight = function(phaseId, tokenId) {
   const token = tokens.find(t => t.id === tokenId);
   if (token) {
     token.weight = 1.0;
+    syncActiveConceptLayers();
     renderApp();
   }
 };
@@ -1661,6 +1996,24 @@ window.toggleTokenCore = function(phaseId, tokenId) {
   if (!token) return;
 
   token.isCore = !token.isCore;
+
+  // Coreをセットした場合、そのトークンのGemini「⚠競合」バインディングを削除する
+  if (token.isCore) {
+    const tb = window._piaBindings?.tokenBadges;
+    if (tb) {
+      const key = token.text.toLowerCase().trim();
+      const entries = tb.get(key);
+      if (entries) {
+        const filtered = entries.filter(e => e.type !== 'geminiConflict');
+        if (filtered.length > 0) {
+          tb.set(key, filtered);
+        } else {
+          tb.delete(key);
+        }
+      }
+    }
+  }
+
   const action = token.isCore ? 'Core に設定' : 'Core を解除';
   showToast(`"${token.text}" を ${action}しました`, token.isCore ? 'success' : 'warning');
   renderApp();
@@ -1964,27 +2317,70 @@ const DEFAULT_LAYER_NAMES = ["medium", "tonal", "atmosphere", "subject", "style"
 let _conceptActiveCat = null;
 
 // Load concepts from localStorage
-function loadConceptsFromStorage() {
+// Load concepts from Firestore concepts collection
+async function loadConceptsFromStorage() {
+  if (!window.db || !window.firestore) {
+    console.warn("Firebase/Firestore is not initialized yet. Skipping cloud load.");
+    state.concepts = [];
+    return;
+  }
+  const { collection, getDocs } = window.firestore;
+  const db = window.db;
+
   try {
-    const raw = localStorage.getItem(LS_CONCEPTS_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      // Fallback: ensure isPinned / isBookmarked exist on every concept
-      state.concepts = parsed.map(c => ({
-        isPinned: false,
-        isBookmarked: false,
-        ...c
-      }));
-    }
+    const conceptsCol = collection(db, "concepts");
+    const snapshot = await getDocs(conceptsCol);
+    const loaded = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    state.concepts = loaded.map(c => ({
+      isPinned: false,
+      isBookmarked: false,
+      ...c
+    }));
+    console.log("Concepts successfully loaded from Firestore:", state.concepts);
   } catch (e) {
-    console.error("Failed to load concepts:", e);
+    console.error("Failed to load concepts from Firestore:", e);
     state.concepts = [];
   }
 }
 
-// Save concepts to localStorage
-function saveConceptsToStorage() {
-  localStorage.setItem(LS_CONCEPTS_KEY, JSON.stringify(state.concepts));
+// Save concepts to Firestore concepts collection
+async function saveConceptsToStorage() {
+  if (!window.db || !window.firestore) {
+    console.warn("Firebase/Firestore is not initialized yet. Skipping cloud sync.");
+    return;
+  }
+  const { doc, setDoc, deleteDoc, collection, getDocs } = window.firestore;
+  const db = window.db;
+
+  try {
+    // 1. Retrieve all existing concepts in Firestore to find deleted ones
+    const conceptsCol = collection(db, "concepts");
+    const snapshot = await getDocs(conceptsCol);
+    const existingIds = snapshot.docs.map(d => d.id);
+
+    // 2. Identify and delete concepts that are no longer in local state.concepts
+    const currentIds = state.concepts.map(c => c.id);
+    const idsToDelete = existingIds.filter(id => !currentIds.includes(id));
+    for (const id of idsToDelete) {
+      const conceptRef = doc(db, "concepts", id);
+      await deleteDoc(conceptRef);
+    }
+
+    // 3. Save / update all current concepts from local state.concepts in Firestore
+    for (const concept of state.concepts) {
+      const conceptId = concept.id || `concept_${Date.now()}`;
+      const conceptRef = doc(db, "concepts", conceptId);
+      await setDoc(conceptRef, concept);
+    }
+
+    console.log("Concepts successfully saved/synced to Firestore.");
+  } catch (error) {
+    console.error("Error saving concepts to Firestore: ", error);
+  }
 }
 
 // ---- RENDER: Concept Library ----
@@ -2080,7 +2476,7 @@ function renderConceptCards() {
       : "";
 
     // Calculate commit count (initial value is 1 minimum for display)
-    const commitCount = Math.max(1, (concept.commits || []).length);
+    const commitCount = Math.max(1, concept.commitCount || 0);
 
     // Calculate positive and negative phases
     let posCount = 0;
@@ -2209,31 +2605,56 @@ window.toggleConceptBookmark = function(conceptId, event) {
 };
 
 
+// ---- FETCH: Firestoreサブコレクションからコミット一覧を取得 ----
+async function fetchConceptCommits(conceptId) {
+  if (!window.db || !window.firestore) return [];
+  const { collection, getDocs, query, orderBy } = window.firestore;
+
+  try {
+    const commitsCol = collection(window.db, "concepts", conceptId, "commits");
+    const q = query(commitsCol, orderBy("timestamp", "asc"));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => doc.data());
+  } catch (error) {
+    console.error("Failed to fetch concept commits:", error);
+    return [];
+  }
+}
+
 // ---- LOAD: Apply concept to workspace ----
-function loadConcept(conceptId) {
+async function loadConcept(conceptId) {
   const concept = state.concepts.find(c => c.id === conceptId);
 
   if (!concept) return;
 
   if (!confirm(`Load concept "${concept.name}"?\n現在のワークスペースは上書きされます。`)) return;
 
-  // Flatten all layer phases into state.phases (preserving order: layer order)
-  const allPhases = [];
-  Object.entries(concept.layers || {}).forEach(([layerName, phases]) => {
-    (phases || []).forEach(phase => {
-      // Tag phase with layer info for display
-      allPhases.push({ ...phase, _layerName: layerName });
+  let restoredPhases;
+  const commits = await fetchConceptCommits(conceptId);
+  if (commits.length > 0) {
+    // 最新のコミット (末尾) を使用
+    const latestCommit = commits[commits.length - 1];
+    restoredPhases = JSON.parse(JSON.stringify(latestCommit.phases));
+  } else {
+    // Flatten all layer phases into state.phases (preserving order: layer order)
+    const allPhases = [];
+    Object.entries(concept.layers || {}).forEach(([layerName, phases]) => {
+      (phases || []).forEach(phase => {
+        // Tag phase with layer info for display
+        allPhases.push({ ...phase, _layerName: layerName });
+      });
     });
-  });
 
-  // Restore the exact original phase order when saved, fallback to current behavior if old concept
-  allPhases.sort((a, b) => {
-    const idxA = a._originalIndex !== undefined ? a._originalIndex : Number.MAX_SAFE_INTEGER;
-    const idxB = b._originalIndex !== undefined ? b._originalIndex : Number.MAX_SAFE_INTEGER;
-    return idxA - idxB;
-  });
+    // Restore the exact original phase order when saved, fallback to current behavior if old concept
+    allPhases.sort((a, b) => {
+      const idxA = a._originalIndex !== undefined ? a._originalIndex : Number.MAX_SAFE_INTEGER;
+      const idxB = b._originalIndex !== undefined ? b._originalIndex : Number.MAX_SAFE_INTEGER;
+      return idxA - idxB;
+    });
 
-  const restoredPhases = JSON.parse(JSON.stringify(allPhases));
+    restoredPhases = JSON.parse(JSON.stringify(allPhases));
+  }
+
   restoredPhases.forEach(ensurePhaseStructure);
   state.phases = restoredPhases;
 
@@ -2241,18 +2662,32 @@ function loadConcept(conceptId) {
   state.activeConcept = conceptId;
   updateCommitButton();
 
-  showToast(`Loaded concept "${concept.name}" (${Object.keys(concept.layers).join(", ")})`, "success");
+  showToast(`Loaded concept "${concept.name}"`, "success");
   renderApp();
   renderConceptLibrary(); // カードのアクティブ状態を更新
 }
 
 
 // ---- DELETE ----
-function deleteConcept(conceptId) {
+async function deleteConcept(conceptId) {
   const idx = state.concepts.findIndex(c => c.id === conceptId);
   if (idx === -1) return;
   const name = state.concepts[idx].name;
   if (!confirm(`Delete concept "${name}"?`)) return;
+
+  try {
+    if (window.db && window.firestore) {
+      const { collection, getDocs, deleteDoc, doc } = window.firestore;
+      const commitsCol = collection(window.db, "concepts", conceptId, "commits");
+      const snapshot = await getDocs(commitsCol);
+      for (const commitDoc of snapshot.docs) {
+        await deleteDoc(doc(window.db, "concepts", conceptId, "commits", commitDoc.id));
+      }
+    }
+  } catch (error) {
+    console.error("Error cleaning up concept commits:", error);
+  }
+
   state.concepts.splice(idx, 1);
   saveConceptsToStorage();
   // アクティブコンセプトが削除された場合はボタンを無効化
@@ -2464,6 +2899,10 @@ function saveConceptFromModal() {
   state.concepts.push(concept);
   saveConceptsToStorage();
 
+  // 新しく作成されたコンセプトをアクティブ化し、コミット可能にする
+  state.activeConcept = concept.id;
+  updateCommitButton();
+
   // If new custom category, update active filter to show it
   _conceptActiveCat = null;
 
@@ -2473,8 +2912,8 @@ function saveConceptFromModal() {
 }
 
 // ---- Wire up all Concept Library events ----
-function initConceptLibrary() {
-  loadConceptsFromStorage();
+async function initConceptLibrary() {
+  await loadConceptsFromStorage();
   renderConceptLibrary();
 
   // Open save modal
@@ -2627,6 +3066,22 @@ function openBookmarkModal() {
         restoredPhases.forEach(ensurePhaseStructure);
         state.phases = restoredPhases;
         state.activeConcept = targetConcept.id;
+
+        // layers も同期する
+        const layersMap = {};
+        let phaseIndexCounter = 0;
+        state.phases.forEach(phase => {
+          const layerName = phase._layerName || "medium";
+          if (!layersMap[layerName]) layersMap[layerName] = [];
+          
+          let phaseCopy = JSON.parse(JSON.stringify(phase));
+          ensurePhaseStructure(phaseCopy);
+          phaseCopy._originalIndex = phaseIndexCounter++;
+          layersMap[layerName].push(phaseCopy);
+        });
+        targetConcept.layers = layersMap;
+        saveConceptsToStorage();
+
         updateCommitButton();
 
         renderApp();
@@ -2672,7 +3127,7 @@ function updateCommitButton() {
 
   if (concept) {
     btn.disabled = false;
-    const commitCount = (concept.commits || []).length;
+    const commitCount = concept.commitCount || 0;
     if (label) label.textContent = `Commit → ${concept.name} (${commitCount})`;
   } else {
     btn.disabled = true;
@@ -2682,21 +3137,17 @@ function updateCommitButton() {
 
 /**
  * 現在の state.phases をディープコピーして、
- * アクティブコンセプトの commits 配列に新しいコミットとして追加し、
- * localStorage へ保存する。
+ * Firestore の concepts/{id}/commits サブコレクションに新しいコミットとして保存する。
+ * concept.commits 配列は廃止し、commitCount フィールドでカウントを管理する。
  *
- * データ構造:
- *   concept.commits = [
- *     {
- *       id: "commit_<timestamp>",
- *       message: "Commit #N",
- *       timestamp: ISO string,
- *       phases: [ ...deep copy of state.phases ]
- *     },
- *     ...
- *   ]
+ * データ構造 (Firestoreサブコレクション):
+ *   concepts/{conceptId}/commits/{commitId}
+ *     id: "commit_<timestamp>",
+ *     message: "Commit #N",
+ *     timestamp: ISO string,
+ *     phases: [ ...deep copy of state.phases ]
  */
-function commitToConceptHistory() {
+async function commitToConceptHistory() {
   if (!state.activeConcept) {
     showToast("コンセプトが選択されていません。Libraryからコンセプトをロードしてください。", "warning");
     return;
@@ -2710,27 +3161,54 @@ function commitToConceptHistory() {
     return;
   }
 
-  // commits 配列が存在しない旧データを移行
-  if (!Array.isArray(concept.commits)) {
-    concept.commits = [];
-  }
+  // コミット前に現在のワークスペースの全フェーズ構造を強制的に確定・保証する
+  state.phases.forEach(ensurePhaseStructure);
 
-  const commitIndex = concept.commits.length + 1;
+  const commitIndex = (concept.commitCount || 0) + 1;
   const newCommit = {
     id: "commit_" + Date.now(),
     message: `Commit #${commitIndex}`,
     timestamp: new Date().toISOString(),
-    phases: JSON.parse(JSON.stringify(state.phases)) // ワークスペースのディープコピー
+    phases: JSON.parse(JSON.stringify(state.phases)) // 完全に構造が保証されたオブジェクトをディープコピー
   };
 
-  concept.commits.push(newCommit);
-  saveConceptsToStorage();
-  updateCommitButton();
-  renderConceptLibrary();
+  // layers も最新コミット（state.phases）のディープコピーで同期する
+  const layersMap = {};
+  let phaseIndexCounter = 0;
+  state.phases.forEach(phase => {
+    const layerName = phase._layerName || "medium";
+    if (!layersMap[layerName]) layersMap[layerName] = [];
 
-  showToast(
-    `✔ Commit #${commitIndex} を "${concept.name}" に保存しました（計 ${concept.commits.length} commits）`
-  );
+    let phaseCopy = JSON.parse(JSON.stringify(phase));
+    ensurePhaseStructure(phaseCopy);
+    phaseCopy._originalIndex = phaseIndexCounter++;
+    layersMap[layerName].push(phaseCopy);
+  });
+  concept.layers = layersMap;
+  concept.commitCount = commitIndex;
+
+  try {
+    if (window.db && window.firestore) {
+      const { doc, setDoc, collection } = window.firestore;
+      // コミットをサブコレクションの個別ドキュメントとして保存
+      const commitRef = doc(collection(window.db, "concepts", concept.id, "commits"), newCommit.id);
+      await setDoc(commitRef, newCommit);
+
+      if (!concept.commits) concept.commits = [];
+      concept.commits.push(newCommit);
+    }
+
+    saveConceptsToStorage();
+    updateCommitButton();
+
+    // 保存後にWORKSPACEを再レンダリングし、保持しているすべてのPatternデータ配列をそのまま維持
+    renderApp();
+
+    showToast(`✔ Commit #${commitIndex} を "${concept.name}" に保存しました（計 ${commitIndex} commits）`);
+  } catch (error) {
+    console.error("Error saving commit to Firestore: ", error);
+    showToast("コミットの保存に失敗しました", "error");
+  }
 }
 
 // ---- CONCEPT ARCHIVE & EXTRA ACTIONS ----
@@ -2740,45 +3218,44 @@ window.renderConceptArchive = function() {
   if (!container) return;
   container.innerHTML = "";
 
-  if (!state.activeConcept) {
-    container.innerHTML = `<p class="text-slate-500 text-xs text-center py-4">コンセプトをロードするとコミット履歴が表示されます。</p>`;
+  // 全てのコンセプトからアーカイブ（退避データ）を横断的に集約して永続表示化
+  let allArchived = [];
+  state.concepts.forEach(c => {
+    if (Array.isArray(c.archivedCommits)) {
+      c.archivedCommits.forEach(a => {
+        allArchived.push(a);
+      });
+    }
+  });
+
+  if (allArchived.length === 0) {
+    container.innerHTML = `<p class="text-slate-500 text-xs text-center py-4">TIME-LINE TREE内の「○」ボタンをクリックすると、ここに選択したCommitデータが最大5件まで永続保存・表示されます。</p>`;
     return;
   }
 
-  const concept = state.concepts.find(c => c.id === state.activeConcept);
-  if (!concept) {
-    container.innerHTML = `<p class="text-slate-500 text-xs text-center py-4">コンセプトが見つかりません。</p>`;
-    return;
-  }
+  // タイムスタンプ順に降順（新しい退避データが上）にソートして最大5件を描画
+  allArchived.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  allArchived = allArchived.slice(0, 5);
 
-  const commits = concept.commits || [];
-  if (commits.length === 0) {
-    container.innerHTML = `<p class="text-slate-500 text-xs text-center py-4">コミット履歴がありません。"Commit"ボタンで履歴を作成できます。</p>`;
-    return;
-  }
-
-  // Render commits in descending order
-  [...commits].reverse().forEach(commit => {
+  allArchived.forEach(arch => {
     const card = document.createElement("div");
     card.className = "flex items-center justify-between p-2.5 rounded-lg border border-slate-700/40 bg-slate-800/20 hover:bg-slate-850 hover:border-slate-600 transition group text-xs";
-
-    const dateStr = new Date(commit.timestamp).toLocaleString();
+    const dateStr = new Date(arch.timestamp).toLocaleString();
 
     card.innerHTML = `
-      <div class="flex-grow text-left">
-        <div class="font-bold text-slate-300">${commit.message}</div>
+      <div class="flex-grow text-left pr-2">
+        <div class="font-bold text-slate-300">${arch.sourceMessage} <span class="text-purple-400 font-normal ml-1">[${arch.conceptName}]</span></div>
         <div class="text-[9px] text-slate-500 font-mono mt-0.5">${dateStr}</div>
       </div>
       <div class="flex items-center gap-2">
-        <button onclick="restoreCommit('${concept.id}', '${commit.id}')" class="px-2.5 py-1 bg-purple-950/60 hover:bg-purple-900 border border-purple-500/30 text-purple-300 hover:text-purple-200 transition rounded text-[10px] font-semibold">
+        <button onclick="restoreArchivedCardDirectly('${arch.conceptId}', '${arch.sourceCommitId}')" class="px-2.5 py-1 bg-purple-950/60 hover:bg-purple-900 border border-purple-500/30 text-purple-300 hover:text-purple-200 transition rounded text-[10px] font-semibold">
           Restore
         </button>
-        <button onclick="deleteCommit('${concept.id}', '${commit.id}')" class="text-rose-400 hover:text-rose-300 opacity-0 group-hover:opacity-100 transition p-1">
-          <i class="fa-solid fa-trash-can text-[10px]"></i>
+        <button onclick="deleteArchivedCommitDirectly('${arch.conceptId}', '${arch.id}')" class="text-rose-400 hover:text-rose-300">
+          <i class="fa-solid fa-trash-can"></i>
         </button>
       </div>
     `;
-
     container.appendChild(card);
   });
 };
@@ -2796,11 +3273,26 @@ window.restoreCommit = function(conceptId, commitId) {
   restoredPhases.forEach(ensurePhaseStructure);
   state.phases = restoredPhases;
 
+  // layers も復元した状態のディープコピーで同期する
+  const layersMap = {};
+  let phaseIndexCounter = 0;
+  state.phases.forEach(phase => {
+    const layerName = phase._layerName || "medium";
+    if (!layersMap[layerName]) layersMap[layerName] = [];
+    
+    let phaseCopy = JSON.parse(JSON.stringify(phase));
+    ensurePhaseStructure(phaseCopy);
+    phaseCopy._originalIndex = phaseIndexCounter++;
+    layersMap[layerName].push(phaseCopy);
+  });
+  concept.layers = layersMap;
+  saveConceptsToStorage();
+
   showToast(`Restored to commit "${commit.message}"`, "success");
   renderApp();
 };
 
-window.deleteCommit = function(conceptId, commitId) {
+window.deleteCommit = async function(conceptId, commitId) {
   const concept = state.concepts.find(c => c.id === conceptId);
   if (!concept) return;
 
@@ -2809,11 +3301,23 @@ window.deleteCommit = function(conceptId, commitId) {
 
   if (!confirm(`Delete commit "${concept.commits[idx].message}"?`)) return;
 
-  concept.commits.splice(idx, 1);
-  saveConceptsToStorage();
-  updateCommitButton();
-  renderConceptLibrary();
-  showToast("Commit deleted.", "warning");
+  try {
+    if (window.db && window.firestore) {
+      const { doc, deleteDoc } = window.firestore;
+      await deleteDoc(doc(window.db, "concepts", conceptId, "commits", commitId));
+    }
+    concept.commits.splice(idx, 1);
+    saveConceptsToStorage();
+    updateCommitButton();
+    renderConceptLibrary();
+    if (_timelineConceptId === conceptId) {
+      renderTimelineTree(conceptId);
+    }
+    showToast("Commit deleted.", "warning");
+  } catch (error) {
+    console.error("Error deleting commit:", error);
+    showToast("Failed to delete commit.", "error");
+  }
 };
 
 window.startEditConceptTitle = function(conceptId, event) {
@@ -2878,7 +3382,7 @@ let _activeDiffTab     = 'note'; // currently selected diff tab
  * Called from the card's "tree" button.
  * Shows the TIME-LINE TREE panel for the given concept.
  */
-window.toggleConceptTree = function(conceptId, event) {
+window.toggleConceptTree = async function(conceptId, event) {
   if (event) event.stopPropagation();
 
   const panel = document.getElementById('timeline-tree-panel');
@@ -2896,6 +3400,10 @@ window.toggleConceptTree = function(conceptId, event) {
 
   const concept = state.concepts.find(c => c.id === conceptId);
   if (!concept) return;
+
+  if (!concept.commits || concept.commits.length === 0) {
+    concept.commits = await fetchConceptCommits(conceptId);
+  }
 
   // Update header name
   const nameEl = document.getElementById('timeline-concept-name');
@@ -2973,7 +3481,8 @@ function renderTimelineTree(conceptId) {
         </button>
         <div class="tl-connector-line"></div>
       </div>
-      <div class="tl-label tl-label-commit">${commit.message}<br>
+      <div class="tl-label tl-label-commit">
+        <button class="tl-commit-btn" onclick="openCommitDetailOverlay('${conceptId}', '${commit.id}')">${commit.message}</button><br>
         <span class="font-mono text-[9px] text-slate-500">${dateStr}</span>
       </div>
     `;
@@ -3020,19 +3529,25 @@ window.restoreCommitToArchive = function(conceptId, commitId) {
   const commit = (concept.commits || []).find(c => c.id === commitId);
   if (!commit) return;
 
-  if (!confirm(`「${commit.message}」の構成をSTYLE CONCEPT ARCHIVEに復元しますか？\n（ワークスペースは変更されません）`)) return;
+  if (!confirm(`「${commit.message}」の構成をSTYLE CONCEPT ARCHIVEに退避・保存しますか？\n（ワークスペースは変更されません）`)) return;
 
-  // Store in concept.archivedCommits (separate from commits[])
   if (!Array.isArray(concept.archivedCommits)) concept.archivedCommits = [];
-  // Avoid duplicates
+  
   const alreadyArchived = concept.archivedCommits.some(a => a.sourceCommitId === commitId);
   if (alreadyArchived) {
     showToast(`「${commit.message}」は既にARCHIVEに存在します。`, 'warning');
     return;
   }
 
+  // 最大5件制限：上限に達している場合は最も古いアーカイブ（先頭）を削除
+  if (concept.archivedCommits.length >= 5) {
+    concept.archivedCommits.shift();
+  }
+
   concept.archivedCommits.push({
     id: 'arch_' + Date.now(),
+    conceptId: conceptId,         // コンセプトIDを保持
+    conceptName: concept.name,     // コンセプトタイトル（テーマ名）を保持
     sourceCommitId: commitId,
     sourceMessage: commit.message,
     timestamp: commit.timestamp,
@@ -3041,7 +3556,53 @@ window.restoreCommitToArchive = function(conceptId, commitId) {
 
   saveConceptsToStorage();
   renderConceptArchive();
-  showToast(`「${commit.message}」をARCHIVEに復元しました。`, 'success');
+  showToast(`「${commit.message}」をARCHIVEに保存しました（最大5件）。`, 'success');
+};
+
+// アーカイブカード専用の復元・削除ヘルパー関数を追記
+window.restoreArchivedCardDirectly = function(conceptId, commitId) {
+  const concept = state.concepts.find(c => c.id === conceptId);
+  if (!concept) return;
+  const commit = (concept.commits || []).find(c => c.id === commitId);
+  if (!commit) return;
+  if (!confirm(`このアーカイブから「${commit.message}」の状態をWORKSPACEに復元しますか？`)) return;
+
+  const restoredPhases = JSON.parse(JSON.stringify(commit.phases));
+  restoredPhases.forEach(ensurePhaseStructure);
+  state.phases = restoredPhases;
+  state.activeConcept = conceptId;
+  
+  // layers も復元した状態のディープコピーで同期する
+  const layersMap = {};
+  let phaseIndexCounter = 0;
+  state.phases.forEach(phase => {
+    const layerName = phase._layerName || "medium";
+    if (!layersMap[layerName]) layersMap[layerName] = [];
+    
+    let phaseCopy = JSON.parse(JSON.stringify(phase));
+    ensurePhaseStructure(phaseCopy);
+    phaseCopy._originalIndex = phaseIndexCounter++;
+    layersMap[layerName].push(phaseCopy);
+  });
+  concept.layers = layersMap;
+  saveConceptsToStorage();
+  
+  if (typeof updateCommitButton === "function") updateCommitButton();
+  renderApp();
+  showToast(`アーカイブから「${commit.message}」を復元しました`);
+};
+
+window.deleteArchivedCommitDirectly = function(conceptId, archId) {
+  const concept = state.concepts.find(c => c.id === conceptId);
+  if (!concept || !Array.isArray(concept.archivedCommits)) return;
+  const idx = concept.archivedCommits.findIndex(a => a.id === archId);
+  if (idx === -1) return;
+  if (!confirm("このアーカイブカードを削除しますか？")) return;
+
+  concept.archivedCommits.splice(idx, 1);
+  saveConceptsToStorage();
+  renderConceptArchive();
+  showToast("アーカイブカードを削除しました", "warning");
 };
 
 /**
@@ -3157,13 +3718,17 @@ function renderDiffWeight(olderCommit, newerCommit, label) {
     newTokens.forEach(newTok => {
       const oldTok = oldTokens.find(t => t.id === newTok.id);
       if (!oldTok) return;
-      if (Math.abs(parseFloat(newTok.weight) - parseFloat(oldTok.weight)) > 0.001) {
+      
+      const oldWVal = (oldTok.weight !== undefined && oldTok.weight !== null && !isNaN(parseFloat(oldTok.weight))) ? parseFloat(oldTok.weight) : 1.0;
+      const newWVal = (newTok.weight !== undefined && newTok.weight !== null && !isNaN(parseFloat(newTok.weight))) ? parseFloat(newTok.weight) : 1.0;
+
+      if (Math.abs(newWVal - oldWVal) > 0.001) {
         // find pattern context
         const patternCtx = getTokenPatternContext(newPhase, newTok.id);
         changes.push({
           text: newTok.text,
-          oldW: parseFloat(oldTok.weight).toFixed(2),
-          newW: parseFloat(newTok.weight).toFixed(2),
+          oldW: oldWVal.toFixed(2),
+          newW: newWVal.toFixed(2),
           phase: newPhase.name,
           ctx: patternCtx
         });
@@ -3188,7 +3753,19 @@ function renderDiffWeight(olderCommit, newerCommit, label) {
 --------------------------------------------------------------- */
 function renderDiffToken(olderCommit, newerCommit, label) {
   let html = `<div class="diff-section-title">Token Changes — ${label}</div>`;
+
+  // 【修正②】 サブタブ（FLUCTUATION / REARRANGEMENT）の追加
+  html += `
+    <div class="flex flex-row mt-2 mb-3">
+      <button id="btn-diff-fluctuation" class="flex-1 py-1.5 text-center text-xs font-bold text-white bg-amber-500 transition" onclick="switchTokenSubTab('fluctuation')">FLUCTUATION</button>
+      <button id="btn-diff-rearrangement" class="flex-1 py-1.5 text-center text-xs font-bold text-white bg-emerald-500 opacity-50 hover:opacity-100 transition" onclick="switchTokenSubTab('rearrangement')">REARRANGEMENT</button>
+    </div>
+  `;
+
+  // --- FLUCTUATION 画面 (初期状態) ---
+  html += `<div id="token-diff-fluctuation-view">`;
   let hasChange = false;
+  let fluctHtml = '';
 
   newerCommit.phases.forEach(newPhase => {
     const oldPhase = olderCommit.phases.find(p => p.id === newPhase.id);
@@ -3202,32 +3779,222 @@ function renderDiffToken(olderCommit, newerCommit, label) {
     if (addedIds.length === 0 && removedIds.length === 0) return;
     hasChange = true;
 
-    html += `<div class="text-[10px] font-bold text-slate-400 mt-2 mb-1 uppercase">${newPhase.name}</div>`;
+    fluctHtml += `<div class="text-[10px] font-bold text-slate-400 mt-2 mb-1 uppercase">${newPhase.name}</div>`;
+    
+    // 【修正①】 トークン増減の文字列横に [Pattern x] を併記
     addedIds.forEach(t => {
-      html += `<div class="diff-add">+ ${t.text}</div>`;
+      let ctx = getTokenPatternContext(newPhase, t.id);
+      let patternStr = ctx ? ` <span class="text-slate-500 text-[9px] font-mono">[${ctx.replace(', ', '')}]</span>` : '';
+      fluctHtml += `<div class="diff-add">+ ${t.text}${patternStr}</div>`;
     });
     removedIds.forEach(t => {
-      html += `<div class="diff-del">- <em>${t.text}</em></div>`;
+      let ctx = getTokenPatternContext(oldPhase, t.id);
+      let patternStr = ctx ? ` <span class="text-slate-500 text-[9px] font-mono">[${ctx.replace(', ', '')}]</span>` : '';
+      fluctHtml += `<div class="diff-del">- <em>${t.text}</em>${patternStr}</div>`;
     });
   });
 
-  // Phases only in older (deleted phases)
+  // 古いコミットにしか存在しないPhase（Phase自体が削除された場合）の処理
   olderCommit.phases.forEach(oldPhase => {
     if (!newerCommit.phases.find(p => p.id === oldPhase.id)) {
       const toks = getAllPhaseTokens(oldPhase);
       if (toks.length > 0) {
         hasChange = true;
-        html += `<div class="text-[10px] font-bold text-slate-400 mt-2 mb-1 uppercase">${oldPhase.name} (Phase削除)</div>`;
+        fluctHtml += `<div class="text-[10px] font-bold text-slate-400 mt-2 mb-1 uppercase">${oldPhase.name} (Phase削除)</div>`;
         toks.forEach(t => {
-          html += `<div class="diff-del">- <em>${t.text}</em></div>`;
+          let ctx = getTokenPatternContext(oldPhase, t.id);
+          let patternStr = ctx ? ` <span class="text-slate-500 text-[9px] font-mono">[${ctx.replace(', ', '')}]</span>` : '';
+          fluctHtml += `<div class="diff-del">- <em>${t.text}</em>${patternStr}</div>`;
         });
       }
     }
   });
 
-  if (!hasChange) html += '<p class="text-slate-600 py-4 text-center">変更なし</p>';
+  if (!hasChange) fluctHtml += '<p class="text-slate-600 py-4 text-center">変更なし</p>';
+  html += fluctHtml;
+  html += `</div>`; // FLUCTUATION view 終了
+
+  // --- REARRANGEMENT 画面 ---
+  html += `<div id="token-diff-rearrangement-view" class="hidden">`;
+  html += renderRearrangementView(olderCommit, newerCommit);
+  html += `</div>`; // REARRANGEMENT view 終了
+
   return html;
 }
+
+// =========================================================
+// 以下、新規追加関数群
+// =========================================================
+
+// サブタブ切り替え制御
+window.switchTokenSubTab = function(subTab) {
+  const fluctBtn = document.getElementById('btn-diff-fluctuation');
+  const rearrBtn = document.getElementById('btn-diff-rearrangement');
+  const fluctView = document.getElementById('token-diff-fluctuation-view');
+  const rearrView = document.getElementById('token-diff-rearrangement-view');
+  
+  if (!fluctBtn || !rearrBtn || !fluctView || !rearrView) return;
+
+  if (subTab === 'fluctuation') {
+    fluctBtn.classList.remove('opacity-50');
+    rearrBtn.classList.add('opacity-50');
+    fluctView.classList.remove('hidden');
+    rearrView.classList.add('hidden');
+  } else {
+    rearrBtn.classList.remove('opacity-50');
+    fluctBtn.classList.add('opacity-50');
+    rearrView.classList.remove('hidden');
+    fluctView.classList.add('hidden');
+  }
+};
+
+// パターン単位の変更検知
+function isPatternChanged(oldPat, newPat) {
+  if (!oldPat && !newPat) return false;
+  if (!oldPat || !newPat) return true;
+  const oldToks = oldPat.tokens || [];
+  const newToks = newPat.tokens || [];
+  if (oldToks.length !== newToks.length) return true; // 増減あり
+  for (let i = 0; i < oldToks.length; i++) {
+    if (oldToks[i].id !== newToks[i].id || 
+        oldToks[i].text !== newToks[i].text || 
+        parseFloat(oldToks[i].weight) !== parseFloat(newToks[i].weight) || 
+        oldToks[i].isActive !== newToks[i].isActive) {
+      return true; // 順序、文字、ウェイト、アクティブ状態のいずれかが変更
+    }
+  }
+  return false;
+}
+
+// REARRANGEMENT画面のレンダリング
+function renderRearrangementView(olderCommit, newerCommit) {
+  let html = '';
+  let hasAnyChange = false;
+
+  // 両方のCommitから対象となる全PhaseIDを抽出
+  const allPhaseIds = new Set([
+    ...olderCommit.phases.map(p => p.id),
+    ...newerCommit.phases.map(p => p.id)
+  ]);
+
+  allPhaseIds.forEach(phaseId => {
+    const oldPhase = olderCommit.phases.find(p => p.id === phaseId);
+    const newPhase = newerCommit.phases.find(p => p.id === phaseId);
+    let phaseChangesHtml = '';
+    const phaseName = newPhase ? newPhase.name : (oldPhase ? oldPhase.name : '');
+    const isNeg = newPhase ? newPhase.isNegative : (oldPhase ? oldPhase.isNegative : false);
+
+    if (isNeg) {
+      const oldToks = oldPhase ? (oldPhase.tokens || []) : [];
+      const newToks = newPhase ? (newPhase.tokens || []) : [];
+      if (isPatternChanged({tokens: oldToks}, {tokens: newToks})) {
+        phaseChangesHtml += `<button class="rearrangement-pat-btn block text-left text-pink-400 font-bold text-xs py-1 hover:text-pink-300 transition uppercase tracking-wide" onclick="openRearrangementModal('${phaseId}', null)">TOKENS</button>`;
+      }
+    } else {
+      const oldPats = oldPhase ? (oldPhase.patterns || []) : [];
+      const newPats = newPhase ? (newPhase.patterns || []) : [];
+      const maxLen = Math.max(oldPats.length, newPats.length);
+      for (let i = 0; i < maxLen; i++) {
+        if (isPatternChanged(oldPats[i], newPats[i])) {
+          phaseChangesHtml += `<button class="rearrangement-pat-btn block text-left text-pink-400 font-bold text-xs py-1 hover:text-pink-300 transition uppercase tracking-wide" onclick="openRearrangementModal('${phaseId}', ${i})">PATTERN ${i + 1}</button>`;
+        }
+      }
+    }
+
+    if (phaseChangesHtml) {
+      hasAnyChange = true;
+      html += `<div class="mb-3">`;
+      html += `<div class="text-white font-bold text-sm mb-1">PHASE/${phaseName}</div>`;
+      html += phaseChangesHtml;
+      html += `</div>`;
+    }
+  });
+
+  if (!hasAnyChange) return '<p class="text-slate-600 py-4 text-center">変更なし</p>';
+  return html;
+}
+
+// 【修正③】 REARRANGEMENT モーダルの展開ロジック
+window.openRearrangementModal = function(phaseId, patternIndex) {
+  if (_activeDiffIndex === null || _timelineConceptId === null) return;
+  const concept = state.concepts.find(c => c.id === _timelineConceptId);
+  if (!concept || !concept.commits) return;
+  
+  const olderCommit = concept.commits[_activeDiffIndex];
+  const newerCommit = concept.commits[_activeDiffIndex + 1];
+  if (!olderCommit || !newerCommit) return;
+
+  const oldPhase = olderCommit.phases.find(p => p.id === phaseId);
+  const newPhase = newerCommit.phases.find(p => p.id === phaseId);
+  const phaseName = newPhase ? newPhase.name : (oldPhase ? oldPhase.name : '');
+
+  // プロンプトをテキスト並列形式（COMPILE画面形式）に整形するヘルパー
+  const formatTokens = (tokens) => {
+    if (!tokens || tokens.length === 0) return '';
+    return tokens.filter(t => t.isActive !== false).map(t => {
+      let weight = parseFloat(t.weight);
+      let term = t.text.trim();
+      if (weight === 1.0) return term;
+      let weightStr = weight.toFixed(3).replace(/\.?0+$/, "");
+      return `(${term}:${weightStr})`;
+    }).join(", ");
+  };
+
+  let oldPrompt = '';
+  let newPrompt = '';
+  let titleStr = `PHASE/ ${phaseName}`;
+
+  if (patternIndex === null) {
+    const oldToks = oldPhase ? (oldPhase.tokens || []) : [];
+    const newToks = newPhase ? (newPhase.tokens || []) : [];
+    oldPrompt = formatTokens(oldToks);
+    newPrompt = formatTokens(newToks);
+  } else {
+    titleStr += `, Pattern ${patternIndex + 1}`;
+    const oldPat = oldPhase && oldPhase.patterns ? oldPhase.patterns[patternIndex] : null;
+    const newPat = newPhase && newPhase.patterns ? newPhase.patterns[patternIndex] : null;
+    oldPrompt = formatTokens(oldPat ? oldPat.tokens : []);
+    newPrompt = formatTokens(newPat ? newPat.tokens : []);
+  }
+
+  // モーダルへ内容を注入
+  document.getElementById('rearrangement-modal-title').innerText = titleStr;
+  document.getElementById('rearrangement-old-commit-label').innerText = `${olderCommit.message}`;
+  document.getElementById('rearrangement-old-text').value = oldPrompt || '(なし)';
+  document.getElementById('rearrangement-new-commit-label').innerText = `${newerCommit.message}`;
+  document.getElementById('rearrangement-new-text').value = newPrompt || '(なし)';
+
+  // モーダル表示アクション
+  const modal = document.getElementById('rearrangement-modal');
+  const content = document.getElementById('rearrangement-modal-content');
+  modal.classList.remove('hidden');
+  setTimeout(() => {
+    content.classList.remove('scale-95');
+    content.classList.add('scale-100');
+  }, 10);
+};
+
+// モーダルを閉じるアクション
+window.closeRearrangementModal = function() {
+  const modal = document.getElementById('rearrangement-modal');
+  const content = document.getElementById('rearrangement-modal-content');
+  if (modal && !modal.classList.contains('hidden')) {
+    content.classList.remove('scale-100');
+    content.classList.add('scale-95');
+    setTimeout(() => {
+      modal.classList.add('hidden');
+    }, 150);
+  }
+};
+
+// Escapeキー押下でモーダルを閉じる対応
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    if (typeof window.closeRearrangementModal === 'function') {
+      window.closeRearrangementModal();
+    }
+  }
+});
 
 /* ---------------------------------------------------------------
    CORE TAB
@@ -3316,11 +4083,11 @@ function renderDiffPhase(olderCommit, newerCommit, label) {
 
   if (orderChanged) {
     html += `<div class="diff-section-title mt-3">Phase Order</div>`;
-    html += `<div class="flex flex-col gap-1 mb-1"><div class="text-[9px] text-slate-500 mb-1">Before:</div>`;
+    html += `<div class="flex flex-row flex-wrap items-center gap-1.5 mb-1"><div class="text-[9px] text-slate-500 mb-1">Before:</div>`;
     html += commonOldPhases.map(p =>
       `<span class="phase-order-bar ${p.isNegative ? 'neg' : 'pos'}">${p.name}</span>`
     ).join('<span class="text-slate-600 mx-1 text-xs">→</span>');
-    html += `</div><div class="flex flex-col gap-1 mt-1"><div class="text-[9px] text-slate-500 mb-1">After:</div>`;
+    html += `</div><div class="flex flex-row flex-wrap items-center gap-1.5 mt-1"><div class="text-[9px] text-slate-500 mb-1">After:</div>`;
     html += commonNewPhases.map(p =>
       `<span class="phase-order-bar ${p.isNegative ? 'neg' : 'pos'}">${p.name}</span>`
     ).join('<span class="text-slate-600 mx-1 text-xs">→</span>');
@@ -3387,8 +4154,8 @@ renderApp = function() {
 };
 
 // Boot Concept Library after DOM ready
-document.addEventListener("DOMContentLoaded", () => {
-  initConceptLibrary();
+document.addEventListener("DOMContentLoaded", async () => {
+  await initConceptLibrary();
 });
 
 
@@ -3398,151 +4165,10 @@ document.addEventListener("DOMContentLoaded", () => {
 const LS_GEMINI_API_KEY = "diffu_gemini_api_key";
 let lastSemanticResult = null;
 
-// Preferred model order for generateContent
-const GEMINI_MODEL_PRIORITY = [
-  "gemini-2.5-flash",
-  "gemini-2.5-flash-lite"
-];
-
-/**
- * Fetch the list of available Gemini models from the v1beta API.
- * Returns an array of model name strings (e.g. ["models/gemini-2.5-flash", ...]).
- */
-async function fetchGeminiModelList(apiKey) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
-  const response = await fetch(url);
-  if (!response.ok) {
-    const errData = await response.json().catch(() => ({}));
-    throw new Error(errData.error?.message || `Model list fetch failed: HTTP ${response.status}`);
-  }
-  const data = await response.json();
-  console.log("[DiffuPrompt] Gemini model list response:", data);
-  // data.models is an array of { name, displayName, ... }
-  return (data.models || []).map(m => m.name); // e.g. ["models/gemini-2.5-flash", ...]
-}
-
-/**
- * Choose the best available model from GEMINI_MODEL_PRIORITY.
- * Returns the bare model ID (e.g. "gemini-2.5-flash").
- */
-async function chooseBestGeminiModel(apiKey) {
-  let available;
-  try {
-    available = await fetchGeminiModelList(apiKey);
-  } catch (e) {
-    console.warn("[DiffuPrompt] Could not fetch model list, falling back to gemini-2.5-flash-lite:", e.message);
-    return "gemini-2.5-flash-lite";
-  }
-
-  for (const candidate of GEMINI_MODEL_PRIORITY) {
-    // API returns "models/gemini-2.5-flash" style names
-    const found = available.some(name => name === `models/${candidate}` || name === candidate);
-    if (found) {
-      console.log(`[DiffuPrompt] Selected Gemini model: ${candidate}`);
-      return candidate;
-    }
-  }
-
-  // Last resort — try the first listed model that supports generateContent
-  console.warn("[DiffuPrompt] No priority model available. Falling back to gemini-2.5-flash-lite.");
-  return "gemini-2.5-flash-lite";
-}
-
-/**
- * Validate that the API key is non-empty.
- * Returns true if the key is a non-empty string.
- */
-function validateGeminiApiKeyFormat(key) {
-  return typeof key === "string" && key.trim().length > 0;
-}
-
-async function fetchGeminiSemanticAnalysis(localResult, steps) {
-  const apiKey = localStorage.getItem(LS_GEMINI_API_KEY) || "";
-  if (!apiKey) {
-    throw new Error("Gemini API Key is not set.");
-  }
-
-  // --- API key presence check ---
-  if (!apiKey.trim()) {
-    throw new Error("APIキーを入力してください");
-  }
-
-  const posText = localResult.posTokens.map(t => `${t.text} (${t.weight})`).join(", ");
-  const negText = localResult.negTokens.map(t => `${t.text} (${t.weight})`).join(", ");
-
-  const systemPrompt = `You are an expert AI analyzing Stable Diffusion prompt structures.
-Analyze the following positive and negative prompts.
-Respond ONLY in valid JSON format matching exactly this structure:
-{
-  "classified": {
-    "constraint": [{"text": "token text", "weight": 1.2}],
-    "restraint": [{"text": "token text", "weight": 0.8}],
-    "condition": [{"text": "token text", "weight": 1.0}]
-  },
-  "wtConstraint": 1.5,
-  "wtRestraint": 0.5,
-  "wtCondition": 1.0,
-  "wtNeg": 2.5,
-  "pctDiffusion": 60,
-  "pctStructure": 40,
-  "causalExplanation": "Explain the causal relationship between positive and negative prompts and Target Sampling Steps: ${steps}, and detect risks of prompt collapse...",
-  "assessments": {
-    "style": { "detected": true, "matchedKws": ["keyword"], "matchedReinf": ["keyword"], "matchedDanger": [], "stabilityScore": 85, "status": "stable" },
-    "grisaille": { "detected": false, "matchedKws": [], "matchedReinf": [], "matchedDanger": [], "stabilityScore": 0, "status": "inactive" },
-    "wetonwet": { "detected": false, "matchedKws": [], "matchedReinf": [], "matchedDanger": [], "stabilityScore": 0, "status": "inactive" },
-    "costume": { "detected": false, "matchedKws": [], "matchedReinf": [], "matchedDanger": [], "stabilityScore": 0, "status": "inactive" },
-    "background": { "detected": false, "matchedKws": [], "matchedReinf": [], "matchedDanger": [], "stabilityScore": 0, "status": "inactive" }
-  }
-}
-Definitions:
-- Constraint: structural/boundary terms (e.g. sharp focus, detailed, anatomy)
-- Restraint: attenuation/suppression terms (e.g. soft, muted, blurry, smooth)
-- Condition: interaction/lighting/field terms (e.g. lighting, bloom, cinematic)
-- wtNeg is calculated as sum(2.0 - weight) for negative tokens.
-- pctDiffusion + pctStructure must equal 100.
-- assessments keys must be exactly: style, grisaille, wetonwet, costume, background.
-  - status must be one of: 'stable', 'warning', 'critical', 'inactive'.
-  - stabilityScore from 0 to 100.
-Positive Prompt: [ ${posText} ]
-Negative Prompt: [ ${negText} ]
-Target Sampling Steps: ${steps}`;
-
-  // --- Requirement 1 & 2: list models, then pick best available ---
-  const modelId = await chooseBestGeminiModel(apiKey);
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`;
-  console.log(`[DiffuPrompt] Calling generateContent with model: ${modelId}`);
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: systemPrompt }] }],
-      generationConfig: { response_mime_type: "application/json" }
-    })
-  });
-
-  // --- Requirement 5: log full API response ---
-  const rawText = await response.text();
-  let data;
-  try {
-    data = JSON.parse(rawText);
-  } catch (_) {
-    data = rawText;
-  }
-  console.log(`[DiffuPrompt] Gemini API full response (model: ${modelId}):`, data);
-
-  if (!response.ok) {
-    const errMsg = (typeof data === "object" && data?.error?.message) ? data.error.message : `HTTP ${response.status}`;
-    throw new Error(errMsg);
-  }
-
-  const jsonText = data.candidates[0].content.parts[0].text;
-  const result = JSON.parse(jsonText);
-  // Attach the model that was actually used so the UI can display it
-  result._usedModel = modelId;
-  return result;
-}
+// ── Gemini API functions are defined in geminiPromptAnalyzer.js ──
+// fetchGeminiModelList(), chooseBestGeminiModel(),
+// validateGeminiApiKeyFormat(), fetchGeminiSemanticAnalysis()
+// are all globally available via window.* exports from that module.
 
 // ============================================================
 //  SEMANTIC DOMINANCE ANALYSIS MODULE
@@ -4448,3 +5074,236 @@ function renderParamRecommender(stepsOverride) {
     return `<li class="${cls}" style="animation-delay:${i * 0.05}s">${tip}</li>`;
   }).join('');
 }
+
+// ============================================================
+//  COMMIT DETAIL OVERLAY CONTROLLERS & ACTIONS
+// ============================================================
+
+window.openCommitDetailOverlay = function(conceptId, commitId) {
+  const concept = state.concepts.find(c => c.id === conceptId);
+  if (!concept) return;
+  const commit = (concept.commits || []).find(c => c.id === commitId);
+  if (!commit) return;
+
+  window._commitDetailOverlayState = {
+    conceptId: conceptId,
+    commitId: commitId,
+    activePhaseId: null,
+    activePatternIndex: 0
+  };
+
+  const nameEl = document.getElementById('commit-detail-concept-name');
+  if (nameEl) nameEl.textContent = concept.name;
+
+  const msgEl = document.getElementById('commit-detail-message');
+  if (msgEl) msgEl.textContent = commit.message;
+
+  const phasesContainer = document.getElementById('commit-detail-phases-container');
+  if (phasesContainer) {
+    phasesContainer.innerHTML = '';
+    (commit.phases || []).forEach(phase => {
+      const isNeg = !!phase.isNegative;
+      const bar = document.createElement('button');
+      bar.className = `detail-phase-bar ${isNeg ? 'neg' : 'pos'}`;
+      bar.textContent = phase.name;
+      bar.onclick = () => window.selectCommitDetailPhase(phase.id);
+      bar.id = `detail-phase-bar-${phase.id}`;
+      phasesContainer.appendChild(bar);
+    });
+  }
+
+  const archiveBtn = document.getElementById('commit-detail-archive-btn');
+  if (archiveBtn) {
+    archiveBtn.onclick = () => {
+      window.archiveCommitFromOverlay(conceptId, commitId);
+    };
+  }
+
+  const expandedSection = document.getElementById('commit-detail-expanded-section');
+  if (expandedSection) expandedSection.classList.add('hidden');
+
+  const modal = document.getElementById('commit-detail-modal');
+  if (modal) {
+    modal.classList.add('open');
+    document.body.style.overflow = "hidden";
+  }
+};
+
+window.closeCommitDetailOverlay = function() {
+  const modal = document.getElementById('commit-detail-modal');
+  if (modal) {
+    modal.classList.remove('open');
+    document.body.style.overflow = "";
+  }
+};
+
+window.handleCommitDetailOverlayClick = function(e) {
+  if (e.target.id === 'commit-detail-modal') {
+    window.closeCommitDetailOverlay();
+  }
+};
+
+window.selectCommitDetailPhase = function(phaseId) {
+  const stateObj = window._commitDetailOverlayState;
+  if (!stateObj) return;
+
+  stateObj.activePhaseId = phaseId;
+  stateObj.activePatternIndex = 0;
+
+  document.querySelectorAll('.detail-phase-bar').forEach(bar => {
+    bar.classList.remove('active');
+  });
+  const activeBar = document.getElementById(`detail-phase-bar-${phaseId}`);
+  if (activeBar) {
+    activeBar.classList.add('active');
+  }
+
+  const expandedSection = document.getElementById('commit-detail-expanded-section');
+  if (expandedSection) expandedSection.classList.remove('hidden');
+
+  window.renderCommitDetailExpandedContents();
+};
+
+window.renderCommitDetailExpandedContents = function() {
+  const stateObj = window._commitDetailOverlayState;
+  if (!stateObj) return;
+
+  const concept = state.concepts.find(c => c.id === stateObj.conceptId);
+  if (!concept) return;
+  const commit = (concept.commits || []).find(c => c.id === stateObj.commitId);
+  if (!commit) return;
+  const phase = (commit.phases || []).find(p => p.id === stateObj.activePhaseId);
+  if (!phase) return;
+
+  const phaseNameEl = document.getElementById('commit-detail-active-phase-name');
+  if (phaseNameEl) phaseNameEl.textContent = phase.name;
+
+  const patternSelector = document.getElementById('commit-detail-pattern-selector');
+  if (patternSelector) {
+    if (phase.isNegative) {
+      patternSelector.classList.add('hidden');
+    } else {
+      patternSelector.classList.remove('hidden');
+      const patterns = phase.patterns || [];
+      const total = patterns.length;
+      const current = stateObj.activePatternIndex + 1;
+
+      const labelEl = document.getElementById('commit-detail-pattern-label');
+      if (labelEl) labelEl.textContent = `Pattern ${current} / ${total}`;
+
+      const prevBtn = document.getElementById('commit-detail-prev-pattern-btn');
+      const nextBtn = document.getElementById('commit-detail-next-pattern-btn');
+
+      if (prevBtn) {
+        prevBtn.disabled = current <= 1;
+        prevBtn.onclick = () => {
+          if (stateObj.activePatternIndex > 0) {
+            stateObj.activePatternIndex--;
+            window.renderCommitDetailExpandedContents();
+          }
+        };
+      }
+      if (nextBtn) {
+        nextBtn.disabled = current >= total;
+        nextBtn.onclick = () => {
+          if (stateObj.activePatternIndex < total - 1) {
+            stateObj.activePatternIndex++;
+            window.renderCommitDetailExpandedContents();
+          }
+        };
+      }
+    }
+  }
+
+  const tokensContainer = document.getElementById('commit-detail-tokens-container');
+  if (tokensContainer) {
+    tokensContainer.innerHTML = '';
+    let tokens = [];
+    if (phase.isNegative) {
+      tokens = phase.tokens || [];
+    } else {
+      const patterns = phase.patterns || [];
+      const pat = patterns[stateObj.activePatternIndex];
+      tokens = pat ? (pat.tokens || []) : [];
+    }
+
+    if (tokens.length === 0) {
+      tokensContainer.innerHTML = '<p class="text-slate-500 text-xs text-center py-4">No tokens in this phase.</p>';
+      return;
+    }
+
+    tokens.forEach(tok => {
+      const isCore = !!tok.isCore;
+      const row = document.createElement('div');
+      row.className = 'overlay-token-row flex items-center justify-between p-2.5 rounded-lg text-xs border border-slate-700/60 bg-slate-800/10 mb-1';
+      
+      const starHtml = !phase.isNegative ? `
+        <span class="text-xs mr-1">
+          <i class="fa-solid fa-star ${isCore ? 'text-amber-400' : 'text-slate-600'}"></i>
+        </span>
+      ` : '';
+
+      row.innerHTML = `
+        <div class="flex items-center gap-2">
+          ${starHtml}
+          <span class="font-medium ${tok.isActive ? 'text-slate-200' : 'text-slate-500 line-through'} break-all">
+            ${tok.text}
+          </span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-slate-500 text-[10px]">Weight:</span>
+          <input type="text" class="token-weight-input w-12 text-center rounded bg-slate-950/60 border border-slate-700/60 text-slate-200 py-0.5" value="${parseFloat(tok.weight).toFixed(2)}" readonly>
+        </div>
+      `;
+      tokensContainer.appendChild(row);
+    });
+  }
+};
+
+window.archiveCommitFromOverlay = function(conceptId, commitId) {
+  const concept = state.concepts.find(c => c.id === conceptId);
+  if (!concept) return;
+  const commit = (concept.commits || []).find(c => c.id === commitId);
+  if (!commit) return;
+
+  if (!Array.isArray(concept.archivedCommits)) concept.archivedCommits = [];
+
+  const alreadyArchived = concept.archivedCommits.some(a => a.sourceCommitId === commitId);
+  if (alreadyArchived) {
+    showToast(`「${commit.message}」は既にARCHIVEに存在します。`, 'warning');
+    return;
+  }
+
+  if (concept.archivedCommits.length >= 5) {
+    concept.archivedCommits.shift();
+  }
+
+  concept.archivedCommits.push({
+    id: 'arch_' + Date.now(),
+    conceptId: conceptId,
+    conceptName: concept.name,
+    sourceCommitId: commitId,
+    sourceMessage: commit.message,
+    timestamp: commit.timestamp,
+    phases: JSON.parse(JSON.stringify(commit.phases))
+  });
+
+  saveConceptsToStorage();
+  window.renderConceptArchive();
+  showToast(`「${commit.message}」をARCHIVEに保存しました`, 'success');
+};
+
+// ============================================================
+//  PROMPT INTELLIGENCE ANALYZER — Hook Integration
+// ============================================================
+document.addEventListener("DOMContentLoaded", () => {
+  // 2. Click listener hook for the "Run Intelligence Analysis" button
+  const btn = document.getElementById("btn-run-intelligence-analysis");
+  if (btn && typeof window.analyzeWorkspacePrompt === "function") {
+    // If the browser already registered this exact reference in geminiPromptAnalyzer.js,
+    // this call will be ignored safely.
+    btn.addEventListener("click", window.analyzeWorkspacePrompt);
+    console.log("[GeminiAnalyzer] btn-run-intelligence-analysis listener confirmed in app.js.");
+  }
+});
+
