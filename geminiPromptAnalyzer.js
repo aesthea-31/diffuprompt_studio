@@ -676,7 +676,7 @@ document.addEventListener("DOMContentLoaded", () => {
     wsKeySaveBtn.addEventListener("click", () => {
       const val = wsKeyInput.value.trim();
       localStorage.setItem(_GEMINI_LS_KEY, val);
-      _showAnalysisToast("Gemini API Key saved.", "success");
+      _showAnalysisToast("Gemini API Key saved to localStorage.", "success");
     });
   }
 

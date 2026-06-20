@@ -1337,10 +1337,10 @@
   </div>
 
   <!-- Bottom Nav Tab Switching -->
-  <script>
+  <script type="module">
       (function () {
         // Flag: prevent app.js initTabControl() from running duplicate setup
-        window.__tabControlInitialized = true;
+        // window.__tabControlInitialized = true;
 
         const pages = ['library', 'workspace', 'compile', 'generate', 'analysis'];
         const activeTabColors = {
@@ -1453,26 +1453,12 @@
   </div>
 
   <!-- Core App Logic -->
-  <script src="promptStructureAnalyzer.js"></script>
-  <script src="geminiPromptAnalyzer.js"></script>
-  <script src="app.js"></script>
+  <script type="module" src="firebase_init.js"></script>
+  <script type="module" src="promptStructureAnalyzer.js"></script>
+  <script type="module" src="geminiPromptAnalyzer.js"></script>
+  <script type="module" src="app.js"></script>
 
-  <!-- Firebase App and Firestore SDKs (v10 modular) -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, collection, doc, setDoc, deleteDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-    // 外部の設定ファイルから読み込む
-    import { firebaseConfig } from "./firebase_config.js";
-
-    // Initialize Firebase
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
-    // Expose to window for app.js
-    window.db = db;
-    window.firestore = { collection, doc, setDoc, deleteDoc, getDocs, query, orderBy };
-  </script>
 </body>
 
 </html>

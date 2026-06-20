@@ -75,6 +75,8 @@ let state = {
   activeConcept: null  // 現在選択中のコンセプトID（commit ボタンの有効化に使用）
 };
 
+window.state = state;
+
 // Default Built-in Presets
 const DEFAULT_PRESETS = [
   {
@@ -620,15 +622,15 @@ function initTabControl() {
 
 // Load presets from Firestore presets collection
 async function loadPresetsFromFirestore() {
-  if (!window.db || !window.firestore) {
-    console.warn("Firebase/Firestore is not initialized yet. Skipping cloud load.");
-    state.presets = [];
-    return;
-  }
-  const { collection, getDocs } = window.firestore;
-  const db = window.db;
-
   try {
+    if (!window.firestore || !window.db) {
+      console.warn("Firestore or db is not initialized. Falling back to empty presets.");
+      state.presets = [];
+      return;
+    }
+    const { collection, getDocs } = window.firestore;
+    const db = window.db;
+
     const presetsCol = collection(db, "presets");
     const snapshot = await getDocs(presetsCol);
     state.presets = snapshot.docs.map(doc => ({
@@ -644,14 +646,14 @@ async function loadPresetsFromFirestore() {
 
 // Save presets to Firestore presets collection
 async function savePresetsToFirestore() {
-  if (!window.db || !window.firestore) {
-    console.warn("Firebase/Firestore is not initialized yet. Skipping cloud sync.");
-    return;
-  }
-  const { doc, setDoc, deleteDoc, collection, getDocs } = window.firestore;
-  const db = window.db;
-
   try {
+    if (!window.firestore || !window.db) {
+      console.warn("Firestore or db is not initialized. Cannot save presets.");
+      return;
+    }
+    const { doc, setDoc, deleteDoc, collection, getDocs } = window.firestore;
+    const db = window.db;
+
     // 1. Retrieve all existing presets in Firestore to find deleted ones
     const presetsCol = collection(db, "presets");
     const snapshot = await getDocs(presetsCol);
@@ -2319,15 +2321,15 @@ let _conceptActiveCat = null;
 // Load concepts from localStorage
 // Load concepts from Firestore concepts collection
 async function loadConceptsFromStorage() {
-  if (!window.db || !window.firestore) {
-    console.warn("Firebase/Firestore is not initialized yet. Skipping cloud load.");
-    state.concepts = [];
-    return;
-  }
-  const { collection, getDocs } = window.firestore;
-  const db = window.db;
-
   try {
+    if (!window.firestore || !window.db) {
+      console.warn("Firestore or db is not initialized. Falling back to empty concepts.");
+      state.concepts = [];
+      return;
+    }
+    const { collection, getDocs } = window.firestore;
+    const db = window.db;
+
     const conceptsCol = collection(db, "concepts");
     const snapshot = await getDocs(conceptsCol);
     const loaded = snapshot.docs.map(doc => ({
@@ -2349,14 +2351,14 @@ async function loadConceptsFromStorage() {
 
 // Save concepts to Firestore concepts collection
 async function saveConceptsToStorage() {
-  if (!window.db || !window.firestore) {
-    console.warn("Firebase/Firestore is not initialized yet. Skipping cloud sync.");
-    return;
-  }
-  const { doc, setDoc, deleteDoc, collection, getDocs } = window.firestore;
-  const db = window.db;
-
   try {
+    if (!window.firestore || !window.db) {
+      console.warn("Firestore or db is not initialized. Cannot save concepts.");
+      return;
+    }
+    const { doc, setDoc, deleteDoc, collection, getDocs } = window.firestore;
+    const db = window.db;
+
     // 1. Retrieve all existing concepts in Firestore to find deleted ones
     const conceptsCol = collection(db, "concepts");
     const snapshot = await getDocs(conceptsCol);
@@ -2607,10 +2609,13 @@ window.toggleConceptBookmark = function(conceptId, event) {
 
 // ---- FETCH: Firestoreサブコレクションからコミット一覧を取得 ----
 async function fetchConceptCommits(conceptId) {
-  if (!window.db || !window.firestore) return [];
-  const { collection, getDocs, query, orderBy } = window.firestore;
-
   try {
+    if (!window.firestore || !window.db) {
+      console.warn("Firestore or db is not initialized. Cannot fetch concept commits.");
+      return [];
+    }
+    const { collection, getDocs, query, orderBy } = window.firestore;
+
     const commitsCol = collection(window.db, "concepts", conceptId, "commits");
     const q = query(commitsCol, orderBy("timestamp", "asc"));
     const snapshot = await getDocs(q);
@@ -2676,13 +2681,15 @@ async function deleteConcept(conceptId) {
   if (!confirm(`Delete concept "${name}"?`)) return;
 
   try {
-    if (window.db && window.firestore) {
-      const { collection, getDocs, deleteDoc, doc } = window.firestore;
-      const commitsCol = collection(window.db, "concepts", conceptId, "commits");
-      const snapshot = await getDocs(commitsCol);
-      for (const commitDoc of snapshot.docs) {
-        await deleteDoc(doc(window.db, "concepts", conceptId, "commits", commitDoc.id));
-      }
+    if (!window.firestore || !window.db) {
+      console.warn("Firestore or db is not initialized. Cannot delete concept commits.");
+      return;
+    }
+    const { collection, getDocs, deleteDoc, doc } = window.firestore;
+    const commitsCol = collection(window.db, "concepts", conceptId, "commits");
+    const snapshot = await getDocs(commitsCol);
+    for (const commitDoc of snapshot.docs) {
+      await deleteDoc(doc(window.db, "concepts", conceptId, "commits", commitDoc.id));
     }
   } catch (error) {
     console.error("Error cleaning up concept commits:", error);
@@ -3188,15 +3195,17 @@ async function commitToConceptHistory() {
   concept.commitCount = commitIndex;
 
   try {
-    if (window.db && window.firestore) {
-      const { doc, setDoc, collection } = window.firestore;
-      // コミットをサブコレクションの個別ドキュメントとして保存
-      const commitRef = doc(collection(window.db, "concepts", concept.id, "commits"), newCommit.id);
-      await setDoc(commitRef, newCommit);
-
-      if (!concept.commits) concept.commits = [];
-      concept.commits.push(newCommit);
+    if (!window.firestore || !window.db) {
+      console.warn("Firestore or db is not initialized. Cannot commit to concept history.");
+      return;
     }
+    const { doc, setDoc, collection } = window.firestore;
+    // コミットをサブコレクションの個別ドキュメントとして保存
+    const commitRef = doc(collection(window.db, "concepts", concept.id, "commits"), newCommit.id);
+    await setDoc(commitRef, newCommit);
+
+    if (!concept.commits) concept.commits = [];
+    concept.commits.push(newCommit);
 
     saveConceptsToStorage();
     updateCommitButton();
@@ -3302,10 +3311,12 @@ window.deleteCommit = async function(conceptId, commitId) {
   if (!confirm(`Delete commit "${concept.commits[idx].message}"?`)) return;
 
   try {
-    if (window.db && window.firestore) {
-      const { doc, deleteDoc } = window.firestore;
-      await deleteDoc(doc(window.db, "concepts", conceptId, "commits", commitId));
+    if (!window.firestore || !window.db) {
+      console.warn("Firestore or db is not initialized. Cannot delete commit.");
+      return;
     }
+    const { doc, deleteDoc } = window.firestore;
+    await deleteDoc(doc(window.db, "concepts", conceptId, "commits", commitId));
     concept.commits.splice(idx, 1);
     saveConceptsToStorage();
     updateCommitButton();
