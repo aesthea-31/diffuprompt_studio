@@ -882,6 +882,17 @@
                 <!-- dynamically populated -->
               </ol>
             </div>
+
+            <!-- Semantic Optimization Tips -->
+            <div class="param-rec-tips-panel mt-4 border-t border-slate-800/80 pt-3" id="da-semantic-optimization-panel">
+              <div class="flex items-center gap-2 mb-3">
+                <i class="fa-solid fa-wand-magic-sparkles text-indigo-400 text-xs"></i>
+                <span class="text-xs font-bold text-slate-300">Semantic Optimization Tips</span>
+              </div>
+              <ol id="da-semantic-tips" class="param-rec-tips-list">
+                <!-- dynamically populated -->
+              </ol>
+            </div>
           </div>
           <!-- ===================================================== END PARAM RECOMMENDER -->
 
@@ -1015,64 +1026,208 @@
                 <span class="assessment-status-badge badge-inactive" id="assess-style-badge">N/A</span>
               </div>
 
-              <!-- 2. Grisaille Tonal Structure -->
-              <div id="assess-grisaille" class="assessment-card status-inactive">
-                <div class="assessment-icon assessment-icon-inactive" id="assess-grisaille-icon">
+              <!-- 2. Mid-Frequency Structure -->
+              <div id="assess-mid-frequency" class="assessment-card status-inactive">
+                <div class="assessment-icon assessment-icon-inactive" id="assess-mid-frequency-icon">
                   <i class="fa-solid fa-circle-half-stroke"></i>
                 </div>
                 <div class="assessment-body">
-                  <div class="assessment-title">グリザイユ塗りトーン構造</div>
-                  <div class="assessment-subtitle">Value-field hierarchy · Midtone dominance · Density-coherent tonal
-                    continuity</div>
-                  <div class="assessment-verdict verdict-inactive" id="assess-grisaille-verdict">—</div>
+                  <div class="assessment-title">中間トーン調/中周波構造層</div>
+                  <div class="assessment-subtitle">Value Gradation · Midtone Dominance · Blending Transitions</div>
+                  <div class="assessment-verdict verdict-inactive" id="assess-mid-frequency-verdict">—</div>
                 </div>
-                <span class="assessment-status-badge badge-inactive" id="assess-grisaille-badge">N/A</span>
+                <span class="assessment-status-badge badge-inactive" id="assess-mid-frequency-badge">N/A</span>
               </div>
 
-              <!-- 3. Wet-on-Wet Tonal Structure -->
-              <div id="assess-wetonwet" class="assessment-card status-inactive">
-                <div class="assessment-icon assessment-icon-inactive" id="assess-wetonwet-icon">
-                  <i class="fa-solid fa-droplet"></i>
-                </div>
-                <div class="assessment-body">
-                  <div class="assessment-title">Wet-on-Wet 塗りトーン構造</div>
-                  <div class="assessment-subtitle">Capillary deposition · Moisture boundary · Pigment migration
-                    restraint · Edge diffusion</div>
-                  <div class="assessment-verdict verdict-inactive" id="assess-wetonwet-verdict">—</div>
-                </div>
-                <span class="assessment-status-badge badge-inactive" id="assess-wetonwet-badge">N/A</span>
-              </div>
-
-              <!-- 4. Costume / Garment -->
+              <!-- 3. Costume / Garment -->
               <div id="assess-costume" class="assessment-card status-inactive">
                 <div class="assessment-icon assessment-icon-inactive" id="assess-costume-icon">
                   <i class="fa-solid fa-shirt"></i>
                 </div>
                 <div class="assessment-body">
                   <div class="assessment-title">衣装 / ガーメント構造層</div>
-                  <div class="assessment-subtitle">Ebony-embroidered wuxia attire · Sino-gothic · Structural drapery ·
-                    Garment flow</div>
+                  <div class="assessment-subtitle">Ebony-embroidered wuxia attire · Sino-gothic · Structural drapery · Garment flow</div>
                   <div class="assessment-verdict verdict-inactive" id="assess-costume-verdict">—</div>
                 </div>
                 <span class="assessment-status-badge badge-inactive" id="assess-costume-badge">N/A</span>
               </div>
 
-              <!-- 5. Background / Architecture -->
+              <!-- 4. Background / Environment -->
               <div id="assess-background" class="assessment-card status-inactive">
                 <div class="assessment-icon assessment-icon-inactive" id="assess-background-icon">
                   <i class="fa-solid fa-mountain-city"></i>
                 </div>
                 <div class="assessment-body">
-                  <div class="assessment-title">背景 / 建築空間構造層</div>
-                  <div class="assessment-subtitle">Sino-gothic temple corridor · Black bamboo columns · Depth-guided
-                    spatial layering</div>
+                  <div class="assessment-title">背景/環境空間構造層</div>
+                  <div class="assessment-subtitle">Sino-gothic temple corridor · Black bamboo columns · Depth-guided spatial layering</div>
                   <div class="assessment-verdict verdict-inactive" id="assess-background-verdict">—</div>
                 </div>
                 <span class="assessment-status-badge badge-inactive" id="assess-background-badge">N/A</span>
               </div>
+
+              <!-- 5. Composition / Layout -->
+              <div id="assess-composition" class="assessment-card status-inactive">
+                <div class="assessment-icon assessment-icon-inactive" id="assess-composition-icon">
+                  <i class="fa-solid fa-crop"></i>
+                </div>
+                <div class="assessment-body">
+                  <div class="assessment-title">構図/レイアウト構造層</div>
+                  <div class="assessment-subtitle">Camera Angle · Symmetrical Framing · Golden Ratio · Rule of Thirds</div>
+                  <div class="assessment-verdict verdict-inactive" id="assess-composition-verdict">—</div>
+                </div>
+                <span class="assessment-status-badge badge-inactive" id="assess-composition-badge">N/A</span>
+              </div>
+
+              <!-- 6. Subject Core -->
+              <div id="assess-subject_core" class="assessment-card status-inactive">
+                <div class="assessment-icon assessment-icon-inactive" id="assess-subject_core-icon">
+                  <i class="fa-solid fa-user-astronaut"></i>
+                </div>
+                <div class="assessment-body">
+                  <div class="assessment-title">被写体/主体構造層</div>
+                  <div class="assessment-subtitle">Detailed Face · Expressive Pose · Character design · Humanoid features</div>
+                  <div class="assessment-verdict verdict-inactive" id="assess-subject_core-verdict">—</div>
+                </div>
+                <span class="assessment-status-badge badge-inactive" id="assess-subject_core-badge">N/A</span>
+              </div>
+
+              <!-- 7. Optics / Luminance -->
+              <div id="assess-optics_luminance" class="assessment-card status-inactive">
+                <div class="assessment-icon assessment-icon-inactive" id="assess-optics_luminance-icon">
+                  <i class="fa-solid fa-lightbulb"></i>
+                </div>
+                <div class="assessment-body">
+                  <div class="assessment-title">光学・レンズ/輝度拡散層</div>
+                  <div class="assessment-subtitle">Rim Lighting · Lens Flare · Spectral Dispersion · Specular Highlight</div>
+                  <div class="assessment-verdict verdict-inactive" id="assess-optics_luminance-verdict">—</div>
+                </div>
+                <span class="assessment-status-badge badge-inactive" id="assess-optics_luminance-badge">N/A</span>
+              </div>
+
+              <!-- 8. Atmosphere / Diffusion -->
+              <div id="assess-atmosphere_diffusion" class="assessment-card status-inactive">
+                <div class="assessment-icon assessment-icon-inactive" id="assess-atmosphere_diffusion-icon">
+                  <i class="fa-solid fa-wind"></i>
+                </div>
+                <div class="assessment-body">
+                  <div class="assessment-title">雰囲気/大気拡散層</div>
+                  <div class="assessment-subtitle">Mist & Fog · Falling Petals · Volumetric Haze · Particle Drift</div>
+                  <div class="assessment-verdict verdict-inactive" id="assess-atmosphere_diffusion-verdict">—</div>
+                </div>
+                <span class="assessment-status-badge badge-inactive" id="assess-atmosphere_diffusion-badge">N/A</span>
+              </div>
             </div>
 
           </div>
+
+          <!-- Semantic Density Meter -->
+          <div id="da-semantic-density-meter" class="mt-6 bg-slate-900/30 rounded-xl p-6 border border-indigo-900/30 dominance-panel-glow">
+            <div class="da-section-title mb-4 flex items-center gap-2">
+              <i class="fa-solid fa-gauge-simple-high text-indigo-400"></i>
+              Semantic Density Meter
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+              <!-- Circular Gauge -->
+              <div class="flex flex-col items-center justify-center p-4 bg-slate-950/40 rounded-xl border border-slate-800/60">
+                <div class="relative w-28 h-28">
+                  <!-- SVG Gauge -->
+                  <svg class="w-full h-full transform -rotate-90">
+                    <circle cx="56" cy="56" r="48" stroke="#1e293b" stroke-width="8" fill="transparent" />
+                    <circle id="sdm-gauge-circle" cx="56" cy="56" r="48" stroke="url(#sdm-gradient)" stroke-width="8" fill="transparent"
+                            stroke-dasharray="301.6" stroke-dashoffset="301.6" stroke-linecap="round" class="transition-all duration-1000 ease-out" />
+                    <defs>
+                      <linearGradient id="sdm-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#818cf8" />
+                        <stop offset="100%" stop-color="#ec4899" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                  <!-- Center Text -->
+                  <div class="absolute inset-0 flex flex-col items-center justify-center">
+                    <span id="sdm-score-value" class="text-2xl font-extrabold text-white font-mono">0</span>
+                    <span class="text-[10px] text-slate-500 uppercase tracking-wider">Score</span>
+                  </div>
+                </div>
+                <div class="text-xs font-bold text-slate-300 mt-3 text-center">Semantic Density Score</div>
+              </div>
+
+              <!-- Right Side Metrics & Progress Bars (takes 2 cols on md) -->
+              <div class="md:col-span-2 flex flex-col gap-4">
+                <!-- Concept Categories -->
+                <div>
+                  <div class="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-1.5">
+                    <i class="fa-solid fa-tags text-indigo-400"></i>
+                    Concept Categories
+                    <span id="sdm-categories-count" class="text-[10px] text-indigo-300 font-mono ml-auto">0 / 12 (Ideal: 6~9)</span>
+                  </div>
+                  <div id="sdm-categories-chips" class="flex flex-wrap gap-1.5">
+                    <!-- Chips dynamically populated -->
+                  </div>
+                </div>
+
+                <!-- Layer Balance & Density Gap -->
+                <div class="flex flex-col gap-3">
+                  <div>
+                    <div class="flex justify-between text-[11px] font-semibold mb-1">
+                      <span class="text-slate-300">Semantic Layer Balance (Constraint / Restraint / Condition)</span>
+                      <span id="sdm-balance-text" class="text-indigo-400 font-mono">Current vs Ideal</span>
+                    </div>
+                    <!-- Progress bars -->
+                    <div class="grid grid-cols-3 gap-2">
+                      <!-- Constraint -->
+                      <div class="bg-slate-950/40 p-2 rounded border border-slate-800/60">
+                        <div class="text-[9px] text-slate-500 font-bold uppercase">Constraint</div>
+                        <div class="flex items-baseline justify-between mt-1">
+                          <span id="sdm-curr-constraint" class="text-xs text-white font-mono">0%</span>
+                          <span id="sdm-ideal-constraint" class="text-[10px] text-slate-500 font-mono">/ 40%</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-1 rounded overflow-hidden mt-1">
+                          <div id="sdm-bar-constraint" class="bg-indigo-500 h-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                      </div>
+                      <!-- Restraint -->
+                      <div class="bg-slate-950/40 p-2 rounded border border-slate-800/60">
+                        <div class="text-[9px] text-slate-500 font-bold uppercase">Restraint</div>
+                        <div class="flex items-baseline justify-between mt-1">
+                          <span id="sdm-curr-restraint" class="text-xs text-white font-mono">0%</span>
+                          <span id="sdm-ideal-restraint" class="text-[10px] text-slate-500 font-mono">/ 30%</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-1 rounded overflow-hidden mt-1">
+                          <div id="sdm-bar-restraint" class="bg-purple-500 h-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                      </div>
+                      <!-- Condition -->
+                      <div class="bg-slate-950/40 p-2 rounded border border-slate-800/60">
+                        <div class="text-[9px] text-slate-500 font-bold uppercase">Condition</div>
+                        <div class="flex items-baseline justify-between mt-1">
+                          <span id="sdm-curr-condition" class="text-xs text-white font-mono">0%</span>
+                          <span id="sdm-ideal-condition" class="text-[10px] text-slate-500 font-mono">/ 30%</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-1 rounded overflow-hidden mt-1">
+                          <div id="sdm-bar-condition" class="bg-emerald-500 h-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div class="flex justify-between text-[11px] font-semibold mb-1">
+                      <span class="text-slate-300">Total Density Score (Current vs Ideal)</span>
+                      <span id="sdm-density-text" class="text-pink-400 font-mono">0 / 70</span>
+                    </div>
+                    <div class="relative w-full bg-slate-950/60 h-2 rounded-full overflow-hidden border border-slate-800/60">
+                      <!-- Ideal bar -->
+                      <div id="sdm-density-ideal-bar" class="absolute top-0 bottom-0 bg-slate-800" style="left: 0%; width: 70%"></div>
+                      <!-- Current bar -->
+                      <div id="sdm-density-current-bar" class="absolute top-0 bottom-0 bg-gradient-to-r from-indigo-500 to-pink-500 transition-all duration-500" style="left: 0%; width: 0%"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div>
       </section>
 
@@ -1428,6 +1583,39 @@
             class="w-full bg-[#112a46] border-none rounded-xl p-4 text-[15px] text-[#1fb2d4] font-medium resize-none focus:outline-none leading-relaxed"
             rows="3"></textarea>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Category Detail Modal -->
+  <div id="category-detail-modal" class="modal-overlay" onclick="window.handleCategoryDetailModalOverlayClick(event)">
+    <div class="modal-box">
+      <!-- Header -->
+      <div class="modal-header">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-600 to-purple-500 flex items-center justify-center">
+            <i class="fa-solid fa-tags text-white text-xs"></i>
+          </div>
+          <div>
+            <h3 id="category-detail-title" class="text-sm font-extrabold text-slate-100 tracking-tight">Category Details</h3>
+            <p class="text-[10px] text-slate-500">分類されたトークン一覧</p>
+          </div>
+        </div>
+        <button onclick="window.closeCategoryDetailModal()" class="text-slate-500 hover:text-slate-200 transition p-1 rounded-lg hover:bg-slate-800">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <!-- Body -->
+      <div class="modal-body" id="category-detail-body">
+        <!-- Content dynamically populated by JS -->
+      </div>
+
+      <!-- Footer -->
+      <div class="modal-footer">
+        <button onclick="window.closeCategoryDetailModal()" class="px-4 py-2 text-xs font-semibold rounded-lg border border-slate-700/60 bg-slate-800/40 text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition">
+          Close
+        </button>
       </div>
     </div>
   </div>

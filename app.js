@@ -1,3 +1,15 @@
+import {
+  CONCEPT_CATEGORIES,
+  classifyTokenLocal,
+  mapTokensToCategories,
+  calculateLayerOrderScore,
+  calculateRedundancyControl,
+  calculateInformationEfficiency,
+  calculateConceptCategoriesScore,
+  calculateLayerBalanceScore,
+  calculateConceptDiversity
+} from './SemanticDensity.js';
+
 // Stable Diffusion Prompt Editor - Core Application Logic
 
 // Initial State
@@ -368,6 +380,8 @@ const SEMANTIC_CONFLICT_RULES = [
   }
 ];
 
+// (Duplicate ASSESSMENT_TARGETS removed)
+
 function computeTokenConflicts() {
   const conflictMap = new Map();
   const coreTokens = [];
@@ -403,9 +417,9 @@ function computeTokenConflicts() {
     const tokens = getPhaseTokens(phase);
     tokens.forEach(tok => {
       if (!tok.isActive) return;
-      
+
       const tokText = tok.text.toLowerCase();
-      
+
       activeRules.forEach(({ coreText, rule }) => {
         if (!phase.isNegative) {
           // Check posConflicts
@@ -453,7 +467,7 @@ function parseTokenWeightIfNeeded(token) {
     let trailingP = 0;
     while (term[leadingP] === '(') leadingP++;
     while (term[term.length - 1 - trailingP] === ')') trailingP++;
-    
+
     let pCount = Math.min(leadingP, trailingP);
     if (pCount > 0) {
       cleanText = term.substring(pCount, term.length - pCount).trim();
@@ -464,7 +478,7 @@ function parseTokenWeightIfNeeded(token) {
       let trailingB = 0;
       while (term[leadingB] === '[') leadingB++;
       while (term[term.length - 1 - trailingB] === ']') trailingB++;
-      
+
       let bCount = Math.min(leadingB, trailingB);
       if (bCount > 0) {
         cleanText = term.substring(bCount, term.length - bCount).trim();
@@ -554,11 +568,11 @@ function initTabControl() {
   const PAGE_IDS = ['workspace', 'library', 'compile', 'generate', 'analysis'];
 
   const ACTIVE_COLORS = {
-    library:   'text-purple-400',
+    library: 'text-purple-400',
     workspace: 'text-cyan-400',
-    compile:   'text-cyan-400',
-    generate:  'text-amber-400',
-    analysis:  'text-indigo-400',
+    compile: 'text-cyan-400',
+    generate: 'text-amber-400',
+    analysis: 'text-indigo-400',
   };
 
   // 1. Initial state: show only page-workspace, hide all others.
@@ -586,8 +600,8 @@ function initTabControl() {
     // Update button active/default colours.
     document.querySelectorAll('.nav-tab-btn').forEach(function (btn) {
       const btnTab = btn.getAttribute('data-tab');
-      const icon   = btn.querySelector('i');
-      const span   = btn.querySelector('span');
+      const icon = btn.querySelector('i');
+      const span = btn.querySelector('span');
 
       // Reset to default colour.
       btn.classList.remove(
@@ -595,16 +609,16 @@ function initTabControl() {
         'bg-slate-800/60'
       );
       btn.classList.add('text-slate-400');
-      if (icon)  { icon.classList.remove( 'text-cyan-400', 'text-purple-400', 'text-amber-400', 'text-indigo-400'); icon.classList.add('text-slate-400'); }
-      if (span)  { span.classList.remove('text-cyan-400', 'text-purple-400', 'text-amber-400', 'text-indigo-400'); span.classList.add('text-slate-400'); }
+      if (icon) { icon.classList.remove('text-cyan-400', 'text-purple-400', 'text-amber-400', 'text-indigo-400'); icon.classList.add('text-slate-400'); }
+      if (span) { span.classList.remove('text-cyan-400', 'text-purple-400', 'text-amber-400', 'text-indigo-400'); span.classList.add('text-slate-400'); }
 
       if (btnTab === tab) {
         // Apply active colour.
         const activeColor = ACTIVE_COLORS[tab] || 'text-cyan-400';
         btn.classList.remove('text-slate-400');
         btn.classList.add(activeColor, 'bg-slate-800/60');
-        if (icon)  { icon.classList.remove('text-slate-400');  icon.classList.add(activeColor); }
-        if (span)  { span.classList.remove('text-slate-400');  span.classList.add(activeColor); }
+        if (icon) { icon.classList.remove('text-slate-400'); icon.classList.add(activeColor); }
+        if (span) { span.classList.remove('text-slate-400'); span.classList.add(activeColor); }
       }
     });
   }
@@ -687,12 +701,12 @@ function setupGlobalEvents() {
     const input = document.getElementById("input-new-phase-name");
     const name = input.value.trim();
     if (!name) return;
-    
+
     const isNegative = document.getElementById("checkbox-new-phase-neg").checked;
-    
+
     // Choose next color sequentially
     const color = PHASE_COLORS[state.phases.length % PHASE_COLORS.length];
-    
+
     const newPhase = {
       id: "phase_" + Date.now(),
       name: name,
@@ -703,7 +717,7 @@ function setupGlobalEvents() {
     };
     ensurePhaseStructure(newPhase);
     state.phases.push(newPhase);
-    
+
     input.value = "";
     document.getElementById("checkbox-new-phase-neg").checked = false;
     showToast(`Phase "${name}" created!`);
@@ -718,14 +732,14 @@ function setupGlobalEvents() {
       showToast("Please paste a prompt first!", "warning");
       return;
     }
-    
+
     const parsedPhases = parseRawPrompt(text);
-    
+
     if (parsedPhases.length === 0) {
       showToast("Could not extract any tokens.", "error");
       return;
     }
-    
+
     let tokenCount = 0;
     parsedPhases.forEach((phase, index) => {
       const importedPhase = {
@@ -740,7 +754,7 @@ function setupGlobalEvents() {
       state.phases.push(importedPhase);
       tokenCount += phase.tokens.length;
     });
-    
+
     inputArea.value = "";
     showToast(`Imported ${tokenCount} tokens into ${parsedPhases.length} phases!`);
     renderApp();
@@ -754,14 +768,14 @@ function setupGlobalEvents() {
       showToast("Please enter a preset name", "warning");
       return;
     }
-    
+
     const newPreset = {
       id: "preset_" + Date.now(),
       name: name,
       isBuiltIn: false,
       phases: JSON.parse(JSON.stringify(state.phases)) // deep copy
     };
-    
+
     state.presets.push(newPreset);
     await savePresetsToFirestore();
     input.value = "";
@@ -806,7 +820,7 @@ function setupGlobalEvents() {
   document.getElementById("file-import-presets").addEventListener("change", (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    
+
     const reader = new FileReader();
     reader.onload = async (event) => {
       try {
@@ -897,10 +911,10 @@ function setupGlobalEvents() {
 function showToast(message, type = "success") {
   const container = document.getElementById("toast-container");
   const toast = document.createElement("div");
-  
+
   let bg = "bg-slate-900/95 border-emerald-500/40 text-emerald-300";
   let icon = "fa-circle-check";
-  
+
   if (type === "warning") {
     bg = "bg-slate-900/95 border-amber-500/40 text-amber-300";
     icon = "fa-circle-exclamation";
@@ -908,15 +922,15 @@ function showToast(message, type = "success") {
     bg = "bg-slate-900/95 border-rose-500/40 text-rose-400";
     icon = "fa-triangle-exclamation";
   }
-  
+
   toast.className = `toast-notification glass-panel px-4 py-3 rounded-lg border flex items-center gap-3 shadow-2xl ${bg}`;
   toast.innerHTML = `
     <i class="fa-solid ${icon}"></i>
     <span class="text-sm font-medium">${message}</span>
   `;
-  
+
   container.appendChild(toast);
-  
+
   // Remove toast after animation completes (3s total)
   setTimeout(() => {
     toast.remove();
@@ -942,25 +956,25 @@ function copyToClipboard(text, successMsg) {
 function parseRawPrompt(rawText) {
   const lines = rawText.split('\n');
   const phases = [];
-  
+
   // Patterns to detect polarity at the beginning of a line
   const posRegex = /^(?:Positive|pos)[\:\;]\s*/i;
   const negRegex = /^(?:Negative|neg)[\:\;]\s*|^(?:Negative prompt:)\s*|^--n(?:o)?\s+/i;
-  
+
   function blockToTokens(textBlock) {
     if (!textBlock.trim()) return [];
-    
+
     // Split by commas, handling parenthetical chunks safely
     let rawParts = textBlock.split(',');
     let parsed = [];
-    
+
     for (let part of rawParts) {
       let term = part.trim();
       if (!term) continue;
-      
+
       let weight = 1.0;
       let cleanText = term;
-      
+
       // Pattern: (text:1.23)
       let explicitWeightMatch = term.match(/^[\(\[]*(.*?)\s*:\s*([0-9.]+)\s*[\)\]]*$/);
       if (explicitWeightMatch) {
@@ -972,7 +986,7 @@ function parseRawPrompt(rawText) {
         let trailingP = 0;
         while (term[leadingP] === '(') leadingP++;
         while (term[term.length - 1 - trailingP] === ')') trailingP++;
-        
+
         let pCount = Math.min(leadingP, trailingP);
         if (pCount > 0) {
           cleanText = term.substring(pCount, term.length - pCount).trim();
@@ -983,7 +997,7 @@ function parseRawPrompt(rawText) {
           let trailingB = 0;
           while (term[leadingB] === '[') leadingB++;
           while (term[term.length - 1 - trailingB] === ']') trailingB++;
-          
+
           let bCount = Math.min(leadingB, trailingB);
           if (bCount > 0) {
             cleanText = term.substring(bCount, term.length - bCount).trim();
@@ -991,12 +1005,12 @@ function parseRawPrompt(rawText) {
           }
         }
       }
-      
+
       // Fallback clean text: strip extra brackets/parentheses inside if they slipped through
       cleanText = cleanText.replace(/[()\[\]]/g, '').trim();
       cleanText = cleanText.replace(/:[0-9.]+$/, '').trim();
       if (!cleanText) continue;
-      
+
       parsed.push({
         id: "tok_" + Math.random().toString(36).substr(2, 9),
         text: cleanText,
@@ -1014,7 +1028,7 @@ function parseRawPrompt(rawText) {
   lines.forEach(line => {
     let cleanLine = line.trim();
     if (!cleanLine) return;
-    
+
     // Check if the line changes the polarity
     if (negRegex.test(cleanLine)) {
       currentPolarityIsNegative = true;
@@ -1023,9 +1037,9 @@ function parseRawPrompt(rawText) {
       currentPolarityIsNegative = false;
       cleanLine = cleanLine.replace(posRegex, '').trim();
     }
-    
+
     if (!cleanLine) return;
-    
+
     const tokens = blockToTokens(cleanLine);
     if (tokens.length > 0) {
       phases.push({
@@ -1035,7 +1049,7 @@ function parseRawPrompt(rawText) {
       });
     }
   });
-  
+
   return phases;
 }
 
@@ -1043,18 +1057,18 @@ function parseRawPrompt(rawText) {
 function compilePrompts() {
   let positiveStrings = [];
   let negativeStrings = [];
-  
+
   state.phases.forEach(phase => {
     if (!phase.isActive) return;
-    
+
     let phaseStrings = [];
     const tokens = getPhaseTokens(phase);
     tokens.forEach(tok => {
       if (!tok.isActive) return;
-      
+
       let weight = parseFloat(tok.weight);
       let term = tok.text.trim();
-      
+
       if (weight === 1.0) {
         phaseStrings.push(term);
       } else {
@@ -1062,7 +1076,7 @@ function compilePrompts() {
         phaseStrings.push(`(${term}:${weightStr})`);
       }
     });
-    
+
     if (phaseStrings.length > 0) {
       let joined = phaseStrings.join(", ");
       if (phase.isNegative) {
@@ -1072,7 +1086,7 @@ function compilePrompts() {
       }
     }
   });
-  
+
   return {
     pos: positiveStrings.join(", \n"),
     neg: negativeStrings.join(", \n")
@@ -1089,19 +1103,19 @@ function renderApp() {
 // Update outputs, characters count, approximate token count
 function updateOutput() {
   const prompts = compilePrompts();
-  
+
   const posTextarea = document.getElementById("output-pos-prompt");
   const negTextarea = document.getElementById("output-neg-prompt");
-  
+
   posTextarea.value = prompts.pos;
   negTextarea.value = prompts.neg;
-  
+
   // Update positive counts
   document.getElementById("pos-char-count").innerText = prompts.pos.length;
   // Estimate tokens (roughly 1 token = 4 characters as a rule of thumb, or word counts + weights)
   let posTokensEst = prompts.pos ? prompts.pos.split(/[\s,]+/).filter(Boolean).length : 0;
   document.getElementById("pos-token-count").innerText = posTokensEst;
-  
+
   // Update negative counts
   document.getElementById("neg-char-count").innerText = prompts.neg.length;
   let negTokensEst = prompts.neg ? prompts.neg.split(/[\s,]+/).filter(Boolean).length : 0;
@@ -1112,18 +1126,18 @@ function updateOutput() {
 function renderPresets() {
   const container = document.getElementById("preset-list-container");
   container.innerHTML = "";
-  
+
   const allPresets = [...DEFAULT_PRESETS, ...state.presets];
-  
+
   if (allPresets.length === 0) {
     container.innerHTML = `<p class="text-slate-500 text-xs text-center py-4">No saved presets.</p>`;
     return;
   }
-  
+
   allPresets.forEach(preset => {
     const card = document.createElement("div");
     card.className = "flex items-center justify-between p-2.5 rounded-lg border border-slate-700/40 bg-slate-800/20 hover:bg-slate-850 hover:border-slate-600 transition group";
-    
+
     let actionsHtml = "";
     if (preset.isBuiltIn) {
       actionsHtml = `<span class="text-[10px] uppercase font-bold text-slate-500 bg-slate-800 px-2 py-0.5 rounded border border-slate-700/60">Built-in</span>`;
@@ -1134,7 +1148,7 @@ function renderPresets() {
         </button>
       `;
     }
-    
+
     card.innerHTML = `
       <button class="btn-load-preset text-left flex-grow text-sm font-medium text-slate-300 hover:text-cyan-400 transition" data-id="${preset.id}">
         ${preset.name}
@@ -1143,10 +1157,10 @@ function renderPresets() {
         ${actionsHtml}
       </div>
     `;
-    
+
     container.appendChild(card);
   });
-  
+
   // Add listeners to presets
   container.querySelectorAll(".btn-load-preset").forEach(btn => {
     btn.addEventListener("click", (e) => {
@@ -1159,7 +1173,7 @@ function renderPresets() {
       }
     });
   });
-  
+
   container.querySelectorAll(".btn-delete-preset").forEach(btn => {
     btn.addEventListener("click", async (e) => {
       e.stopPropagation();
@@ -1178,7 +1192,7 @@ function renderPresets() {
 
 let animatingPhases = {};
 
-window.switchPattern = function(phaseId, dir) {
+window.switchPattern = function (phaseId, dir) {
   const phase = state.phases.find(p => p.id === phaseId);
   if (!phase || phase.isNegative) return;
   const newIndex = phase.activePatternIndex + dir;
@@ -1190,7 +1204,7 @@ window.switchPattern = function(phaseId, dir) {
       tokenArea.style.transition = 'transform 0.18s ease-in, opacity 0.18s ease-in';
       tokenArea.style.transform = 'perspective(1000px) rotateY(-90deg)';
       tokenArea.style.opacity = '0';
-      
+
       setTimeout(() => {
         // 2. Update status and render with flip-enter
         phase.activePatternIndex = newIndex;
@@ -1204,7 +1218,7 @@ window.switchPattern = function(phaseId, dir) {
   }
 };
 
-window.addPattern = function(phaseId) {
+window.addPattern = function (phaseId) {
   const phase = state.phases.find(p => p.id === phaseId);
   if (!phase || phase.isNegative) return;
   if (phase.patterns.length >= 10) {
@@ -1222,13 +1236,13 @@ window.addPattern = function(phaseId) {
   renderApp();
 };
 
-window.startEditPhaseTitle = function(phaseId) {
+window.startEditPhaseTitle = function (phaseId) {
   const phase = state.phases.find(p => p.id === phaseId);
   if (!phase) return;
-  
+
   const container = document.getElementById(`phase-title-container-${phaseId}`);
   if (!container) return;
-  
+
   container.innerHTML = `
     <input type="text" 
            id="edit-phase-title-input-${phaseId}" 
@@ -1238,7 +1252,7 @@ window.startEditPhaseTitle = function(phaseId) {
            onblur="savePhaseTitle('${phaseId}')"
     >
   `;
-  
+
   const input = document.getElementById(`edit-phase-title-input-${phaseId}`);
   if (input) {
     input.focus();
@@ -1246,7 +1260,7 @@ window.startEditPhaseTitle = function(phaseId) {
   }
 };
 
-window.handleEditPhaseTitleKeydown = function(e, phaseId) {
+window.handleEditPhaseTitleKeydown = function (e, phaseId) {
   if (e.key === "Enter") {
     e.preventDefault();
     savePhaseTitle(phaseId);
@@ -1255,10 +1269,10 @@ window.handleEditPhaseTitleKeydown = function(e, phaseId) {
   }
 };
 
-window.savePhaseTitle = function(phaseId) {
+window.savePhaseTitle = function (phaseId) {
   const input = document.getElementById(`edit-phase-title-input-${phaseId}`);
   if (!input) return;
-  
+
   const newName = input.value.trim();
   const phase = state.phases.find(p => p.id === phaseId);
   if (phase && newName) {
@@ -1284,7 +1298,7 @@ window.savePhaseTitle = function(phaseId) {
  */
 window._piaBindings = {
   tokenBadges: new Map(), // key: token text (lowercase)
-  phaseFlags:  new Map(), // key: phase name (lowercase)
+  phaseFlags: new Map(), // key: phase name (lowercase)
 };
 
 /**
@@ -1342,11 +1356,12 @@ function applyGeminiAnalysisBindings(result) {
   });
 
   window._piaBindings.tokenBadges = tb;
-  window._piaBindings.phaseFlags  = pf;
+  window._piaBindings.phaseFlags = pf;
 
   // UIを再描画して反映
   renderPhases();
 }
+window.applyGeminiAnalysisBindings = applyGeminiAnalysisBindings;
 
 // Render Phases & Tokens
 function renderPhases() {
@@ -1357,7 +1372,7 @@ function renderPhases() {
 
   const container = document.getElementById("phases-container");
   container.innerHTML = "";
-  
+
   if (state.phases.length === 0) {
     container.innerHTML = `
       <div class="flex flex-col items-center justify-center p-12 text-center border border-dashed border-slate-700/50 rounded-xl bg-slate-900/20">
@@ -1369,7 +1384,7 @@ function renderPhases() {
         </button>
       </div>
     `;
-    
+
     // Add quick start button listener
     const quickInit = document.getElementById("btn-quick-init");
     if (quickInit) {
@@ -1379,10 +1394,10 @@ function renderPhases() {
     }
     return;
   }
-  
+
   const conflictMap = computeTokenConflicts();
   const piaBindings = window._piaBindings || { tokenBadges: new Map(), phaseFlags: new Map() };
-  
+
   state.phases.forEach((phase, phaseIndex) => {
     const cMap = COLOR_CLASSES[phase.color] || COLOR_CLASSES.purple;
     const isFirst = phaseIndex === 0 || (phase.isNegative && phaseIndex > 0 && !state.phases[phaseIndex - 1].isNegative);
@@ -1396,11 +1411,11 @@ function renderPhases() {
            <i class="fa-solid fa-layer-group text-[9px]"></i> Layer Issue
          </span>`
       : '';
-    
+
     const phaseEl = document.createElement("div");
     phaseEl.className = `glass-panel rounded-xl overflow-hidden border ${cMap.border} ${phase.isActive ? '' : 'opacity-60'} transition-all duration-300`;
     phaseEl.setAttribute("data-phase-id", phase.id);
-    
+
     // Compile token badges list
     let tokensHtml = "";
     const tokens = getPhaseTokens(phase);
@@ -1426,10 +1441,10 @@ function renderPhases() {
           return true;
         });
         // 最高優先度のGeminiバッジを決定
-        const hasGeminiConflict     = effectiveGeminiEntries.some(e => e.type === 'geminiConflict');
-        const hasGeminiDangerPos    = effectiveGeminiEntries.some(e => e.type === 'dangerPos');
-        const hasGeminiDangerNeg    = effectiveGeminiEntries.some(e => e.type === 'dangerNeg');
-        const hasGeminiLayerOrder   = effectiveGeminiEntries.some(e => e.type === 'layerOrderToken');
+        const hasGeminiConflict = effectiveGeminiEntries.some(e => e.type === 'geminiConflict');
+        const hasGeminiDangerPos = effectiveGeminiEntries.some(e => e.type === 'dangerPos');
+        const hasGeminiDangerNeg = effectiveGeminiEntries.some(e => e.type === 'dangerNeg');
+        const hasGeminiLayerOrder = effectiveGeminiEntries.some(e => e.type === 'layerOrderToken');
         const hasAnyGeminiBadge = hasGeminiConflict || hasGeminiDangerPos || hasGeminiDangerNeg || hasGeminiLayerOrder;
 
         if (tok.isActive) {
@@ -1489,7 +1504,7 @@ function renderPhases() {
           bgStyle = `background: rgba(255, 255, 255, 0.01)`;
           borderStyle = `border-slate-800/40`;
         }
-        
+
         const isTokFirst = tokIndex === 0;
         const isTokLast = tokIndex === tokens.length - 1;
 
@@ -1668,7 +1683,7 @@ function renderPhases() {
     if (isAnimating) {
       delete animatingPhases[phase.id];
     }
-    
+
     phaseEl.innerHTML = `
       <!-- Phase Header -->
       <div class="flex flex-wrap items-center justify-between p-4 border-b border-slate-800/70 bg-slate-900/40 gap-3">
@@ -1691,11 +1706,10 @@ function renderPhases() {
           
           <!-- Positive / Negative Tag badge -->
           <button onclick="togglePhaseType('${phase.id}')" 
-                  class="text-[10px] uppercase font-extrabold px-2.5 py-0.5 rounded border transition-all duration-200 ${
-                    phase.isNegative 
-                      ? 'bg-rose-950/40 border-rose-500/40 text-rose-400 hover:bg-rose-900/40' 
-                      : 'bg-emerald-950/40 border-emerald-500/40 text-emerald-400 hover:bg-emerald-900/40'
-                  }"
+                  class="text-[10px] uppercase font-extrabold px-2.5 py-0.5 rounded border transition-all duration-200 ${phase.isNegative
+        ? 'bg-rose-950/40 border-rose-500/40 text-rose-400 hover:bg-rose-900/40'
+        : 'bg-emerald-950/40 border-emerald-500/40 text-emerald-400 hover:bg-emerald-900/40'
+      }"
                   title="Click to toggle Positive/Negative"
           >
             ${phase.isNegative ? 'Negative' : 'Positive'}
@@ -1767,29 +1781,29 @@ function renderPhases() {
         </div>
       </div>
     `;
-    
+
     container.appendChild(phaseEl);
   });
 }
 
 // Handler for token text input keydown
-window.handleTokenInputKeydown = function(e, phaseId) {
+window.handleTokenInputKeydown = function (e, phaseId) {
   if (e.key === "Enter") {
     handleAddTokenButton(phaseId);
   }
 };
 
 // Add token logic
-window.handleAddTokenButton = function(phaseId) {
+window.handleAddTokenButton = function (phaseId) {
   const input = document.getElementById(`input-token-${phaseId}`);
   const val = input.value.trim();
   if (!val) return;
-  
+
   // Support comma-separated tokens
   const newTokensText = val.split(",").map(t => t.trim()).filter(Boolean);
   const phase = state.phases.find(p => p.id === phaseId);
   if (!phase) return;
-  
+
   const tokens = getPhaseTokens(phase);
   newTokensText.forEach(text => {
     const tok = {
@@ -1802,17 +1816,17 @@ window.handleAddTokenButton = function(phaseId) {
     parseTokenWeightIfNeeded(tok);
     tokens.push(tok);
   });
-  
+
   input.value = "";
   showToast(`Added ${newTokensText.length} token(s) to "${phase.name}"`);
   renderApp();
-  
+
   // Re-focus input
   input.focus();
 };
 
 // Phase Controls
-window.togglePhaseActive = function(phaseId) {
+window.togglePhaseActive = function (phaseId) {
   const phase = state.phases.find(p => p.id === phaseId);
   if (phase) {
     phase.isActive = !phase.isActive;
@@ -1820,7 +1834,7 @@ window.togglePhaseActive = function(phaseId) {
   }
 };
 
-window.togglePhaseType = function(phaseId) {
+window.togglePhaseType = function (phaseId) {
   const phase = state.phases.find(p => p.id === phaseId);
   if (phase) {
     phase.isNegative = !phase.isNegative;
@@ -1831,7 +1845,7 @@ window.togglePhaseType = function(phaseId) {
   }
 };
 
-window.setPhaseColor = function(phaseId, color) {
+window.setPhaseColor = function (phaseId, color) {
   const phase = state.phases.find(p => p.id === phaseId);
   if (phase) {
     phase.color = color;
@@ -1839,7 +1853,7 @@ window.setPhaseColor = function(phaseId, color) {
   }
 };
 
-window.deletePhase = function(phaseId) {
+window.deletePhase = function (phaseId) {
   const index = state.phases.findIndex(p => p.id === phaseId);
   if (index !== -1) {
     const name = state.phases[index].name;
@@ -1851,26 +1865,26 @@ window.deletePhase = function(phaseId) {
   }
 };
 
-window.reorderPhase = function(phaseId, direction) {
+window.reorderPhase = function (phaseId, direction) {
   const index = state.phases.findIndex(p => p.id === phaseId);
   if (index === -1) return;
-  
+
   const targetIndex = index + direction;
   if (targetIndex < 0 || targetIndex >= state.phases.length) return;
-  
+
   // Swap elements
   const temp = state.phases[index];
   state.phases[index] = state.phases[targetIndex];
   state.phases[targetIndex] = temp;
-  
+
   renderApp();
 };
 
 // Token Controls
-window.toggleTokenActive = function(phaseId, tokenId) {
+window.toggleTokenActive = function (phaseId, tokenId) {
   const phase = state.phases.find(p => p.id === phaseId);
   if (!phase) return;
-  
+
   const tokens = getPhaseTokens(phase);
   const token = tokens.find(t => t.id === tokenId);
   if (token) {
@@ -1888,7 +1902,7 @@ function syncActiveConceptLayers() {
       state.phases.forEach(ph => {
         const layerName = ph._layerName || "medium";
         if (!layersMap[layerName]) layersMap[layerName] = [];
-        
+
         let phaseCopy = JSON.parse(JSON.stringify(ph));
         ensurePhaseStructure(phaseCopy);
         phaseCopy._originalIndex = phaseIndexCounter++;
@@ -1900,24 +1914,24 @@ function syncActiveConceptLayers() {
   }
 }
 
-window.updateTokenWeight = function(phaseId, tokenId, newWeight) {
+window.updateTokenWeight = function (phaseId, tokenId, newWeight) {
   const phase = state.phases.find(p => p.id === phaseId);
   if (!phase) return;
-  
+
   const tokens = getPhaseTokens(phase);
   const token = tokens.find(t => t.id === tokenId);
   if (token) {
     const valFloat = parseFloat(newWeight);
     token.weight = valFloat;
     updateOutput();
-    
+
     const weightStr = valFloat.toFixed(3).replace(/\.?0+$/, "");
-    
+
     const label = document.getElementById(`weight-label-${phaseId}-${tokenId}`);
     if (label) {
       label.innerText = weightStr + "x";
     }
-    
+
     const input = document.getElementById(`input-weight-${phaseId}-${tokenId}`);
     if (input) {
       input.value = weightStr;
@@ -1926,10 +1940,10 @@ window.updateTokenWeight = function(phaseId, tokenId, newWeight) {
   }
 };
 
-window.updateTokenWeightFromText = function(phaseId, tokenId, textValue) {
+window.updateTokenWeightFromText = function (phaseId, tokenId, textValue) {
   const phase = state.phases.find(p => p.id === phaseId);
   if (!phase) return;
-  
+
   const tokens = getPhaseTokens(phase);
   const token = tokens.find(t => t.id === tokenId);
   if (token) {
@@ -1937,36 +1951,36 @@ window.updateTokenWeightFromText = function(phaseId, tokenId, textValue) {
     if (isNaN(parsed)) {
       parsed = token.weight;
     }
-    
+
     const clamped = Math.max(0.1, Math.min(2.0, parsed));
     token.weight = clamped;
-    
+
     const weightStr = clamped.toFixed(3).replace(/\.?0+$/, "");
-    
+
     const slider = document.getElementById(`slider-${phaseId}-${tokenId}`);
     if (slider) {
       slider.value = clamped;
     }
-    
+
     const label = document.getElementById(`weight-label-${phaseId}-${tokenId}`);
     if (label) {
       label.innerText = weightStr + "x";
     }
-    
+
     const input = document.getElementById(`input-weight-${phaseId}-${tokenId}`);
     if (input) {
       input.value = weightStr;
     }
-    
+
     updateOutput();
     syncActiveConceptLayers();
   }
 };
 
-window.resetTokenWeight = function(phaseId, tokenId) {
+window.resetTokenWeight = function (phaseId, tokenId) {
   const phase = state.phases.find(p => p.id === phaseId);
   if (!phase) return;
-  
+
   const tokens = getPhaseTokens(phase);
   const token = tokens.find(t => t.id === tokenId);
   if (token) {
@@ -1976,10 +1990,10 @@ window.resetTokenWeight = function(phaseId, tokenId) {
   }
 };
 
-window.deleteToken = function(phaseId, tokenId) {
+window.deleteToken = function (phaseId, tokenId) {
   const phase = state.phases.find(p => p.id === phaseId);
   if (!phase) return;
-  
+
   const tokens = getPhaseTokens(phase);
   const index = tokens.findIndex(t => t.id === tokenId);
   if (index !== -1) {
@@ -1989,7 +2003,7 @@ window.deleteToken = function(phaseId, tokenId) {
 };
 
 // Toggle Core mark on a token (positive phases only)
-window.toggleTokenCore = function(phaseId, tokenId) {
+window.toggleTokenCore = function (phaseId, tokenId) {
   const phase = state.phases.find(p => p.id === phaseId);
   if (!phase || phase.isNegative) return;
 
@@ -2021,22 +2035,22 @@ window.toggleTokenCore = function(phaseId, tokenId) {
   renderApp();
 };
 
-window.reorderToken = function(phaseId, tokenId, direction) {
+window.reorderToken = function (phaseId, tokenId, direction) {
   const phase = state.phases.find(p => p.id === phaseId);
   if (!phase) return;
-  
+
   const tokens = getPhaseTokens(phase);
   const index = tokens.findIndex(t => t.id === tokenId);
   if (index === -1) return;
-  
+
   const targetIndex = index + direction;
   if (targetIndex < 0 || targetIndex >= tokens.length) return;
-  
+
   // Swap elements
   const temp = tokens[index];
   tokens[index] = tokens[targetIndex];
   tokens[targetIndex] = temp;
-  
+
   renderApp();
 };
 
@@ -2068,7 +2082,7 @@ function initApiPanel() {
   // Show / Hide API key toggle
   document.getElementById("btn-toggle-api-key").addEventListener("click", () => {
     const input = document.getElementById("input-api-key");
-    const icon  = document.getElementById("icon-eye");
+    const icon = document.getElementById("icon-eye");
     if (input.type === "password") {
       input.type = "text";
       icon.classList.replace("fa-eye", "fa-eye-slash");
@@ -2093,7 +2107,7 @@ function initApiPanel() {
 
   // ---- NEW: Sampling Steps slider in API panel ----
   const stepsSlider = document.getElementById('input-sampling-steps');
-  const stepsLabel  = document.getElementById('label-sampling-steps');
+  const stepsLabel = document.getElementById('label-sampling-steps');
   if (stepsSlider && stepsLabel) {
     stepsSlider.addEventListener('input', () => {
       stepsLabel.textContent = stepsSlider.value;
@@ -2102,7 +2116,7 @@ function initApiPanel() {
 
   // ---- NEW: CFG Scale slider in API panel ----
   const cfgSlider = document.getElementById('input-cfg-scale');
-  const cfgLabel  = document.getElementById('label-cfg-scale');
+  const cfgLabel = document.getElementById('label-cfg-scale');
   if (cfgSlider && cfgLabel) {
     cfgSlider.addEventListener('input', () => {
       cfgLabel.textContent = parseFloat(cfgSlider.value).toFixed(1);
@@ -2146,15 +2160,15 @@ async function generateImage() {
     return;
   }
 
-  const aspectRatio  = document.getElementById("select-aspect-ratio").value;
+  const aspectRatio = document.getElementById("select-aspect-ratio").value;
   const outputFormat = document.getElementById("select-output-format").value;
-  const seedRaw      = parseInt(document.getElementById("input-seed").value, 10);
-  const seed         = isNaN(seedRaw) || seedRaw <= 0 ? 0 : seedRaw;
+  const seedRaw = parseInt(document.getElementById("input-seed").value, 10);
+  const seed = isNaN(seedRaw) || seedRaw <= 0 ? 0 : seedRaw;
 
   // Retrieve sampling steps, CFG scale, and sampler values
-  const steps        = parseInt(document.getElementById("input-sampling-steps").value, 10);
-  const cfgScale     = parseFloat(document.getElementById("input-cfg-scale").value);
-  const sampler      = document.getElementById("select-sampler").value;
+  const steps = parseInt(document.getElementById("input-sampling-steps").value, 10);
+  const cfgScale = parseFloat(document.getElementById("input-cfg-scale").value);
+  const sampler = document.getElementById("select-sampler").value;
 
   _generatedImageFormat = outputFormat;
 
@@ -2163,16 +2177,16 @@ async function generateImage() {
 
   try {
     const formData = new FormData();
-    formData.append("prompt",        prompts.pos);
-    formData.append("aspect_ratio",  aspectRatio);
+    formData.append("prompt", prompts.pos);
+    formData.append("aspect_ratio", aspectRatio);
     formData.append("output_format", outputFormat);
     if (seed > 0) formData.append("seed", String(seed));
     if (prompts.neg.trim()) {
       formData.append("negative_prompt", prompts.neg);
     }
-    formData.append("steps",         String(steps));
-    formData.append("cfg_scale",     String(cfgScale));
-    formData.append("sampler",       sampler);
+    formData.append("steps", String(steps));
+    formData.append("cfg_scale", String(cfgScale));
+    formData.append("sampler", sampler);
 
     setApiLoading(true, "Waiting for generation (this may take ~10–30s)…");
 
@@ -2180,7 +2194,7 @@ async function generateImage() {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiKey}`,
-        "Accept":        "application/json"
+        "Accept": "application/json"
       },
       body: formData
     });
@@ -2204,15 +2218,15 @@ async function generateImage() {
     }
 
     // Convert base64 to Blob URL
-    const mimeType   = outputFormat === "jpeg" ? "image/jpeg"
-                     : outputFormat === "webp"  ? "image/webp"
-                     :                            "image/png";
+    const mimeType = outputFormat === "jpeg" ? "image/jpeg"
+      : outputFormat === "webp" ? "image/webp"
+        : "image/png";
     const byteString = atob(data.image);
-    const byteArray  = new Uint8Array(byteString.length);
+    const byteArray = new Uint8Array(byteString.length);
     for (let i = 0; i < byteString.length; i++) {
       byteArray[i] = byteString.charCodeAt(i);
     }
-    const blob    = new Blob([byteArray], { type: mimeType });
+    const blob = new Blob([byteArray], { type: mimeType });
     const blobUrl = URL.createObjectURL(blob);
 
     // Revoke previous blob URL if any
@@ -2247,9 +2261,9 @@ async function generateImage() {
 
 // ---------- UI helpers ----------
 function setApiLoading(isLoading, statusText = "") {
-  const btn    = document.getElementById("btn-generate-image");
+  const btn = document.getElementById("btn-generate-image");
   const status = document.getElementById("api-status");
-  const txtEl  = document.getElementById("api-status-text");
+  const txtEl = document.getElementById("api-status-text");
 
   if (isLoading) {
     btn.disabled = true;
@@ -2266,7 +2280,7 @@ function setApiLoading(isLoading, statusText = "") {
 function downloadGeneratedImage() {
   if (!_generatedImageBlobUrl) return;
   const a = document.createElement("a");
-  a.href     = _generatedImageBlobUrl;
+  a.href = _generatedImageBlobUrl;
   a.download = `diffuprompt_${Date.now()}.${_generatedImageFormat}`;
   document.body.appendChild(a);
   a.click();
@@ -2276,7 +2290,7 @@ function downloadGeneratedImage() {
 
 // ---------- Lightbox ----------
 function openLightbox() {
-  const modal  = document.getElementById("lightbox-modal");
+  const modal = document.getElementById("lightbox-modal");
   const imgSrc = document.getElementById("generated-image").src;
   if (!imgSrc) return;
   document.getElementById("lightbox-img").src = imgSrc;
@@ -2336,7 +2350,7 @@ async function loadConceptsFromStorage() {
       id: doc.id,
       ...doc.data()
     }));
-    
+
     state.concepts = loaded.map(c => ({
       isPinned: false,
       isBookmarked: false,
@@ -2431,8 +2445,10 @@ function renderConceptCategoryTabs() {
 
 // Get badge CSS class for a layer name
 function getLayerBadgeClass(layerName) {
-  const known = { medium: "layer-badge-medium", tonal: "layer-badge-tonal", atmosphere: "layer-badge-atmosphere",
-                   subject: "layer-badge-subject", style: "layer-badge-style" };
+  const known = {
+    medium: "layer-badge-medium", tonal: "layer-badge-tonal", atmosphere: "layer-badge-atmosphere",
+    subject: "layer-badge-subject", style: "layer-badge-style"
+  };
   return known[layerName.toLowerCase()] || "layer-badge-custom";
 }
 
@@ -2458,9 +2474,9 @@ function renderConceptCards() {
   }
 
   // Sort: pinned first (max 5), then the rest — preserve original order within each group
-  const pinned   = filtered.filter(c => c.isPinned).slice(0, 5);
+  const pinned = filtered.filter(c => c.isPinned).slice(0, 5);
   const unpinned = filtered.filter(c => !c.isPinned);
-  const sorted   = [...pinned, ...unpinned];
+  const sorted = [...pinned, ...unpinned];
 
   sorted.forEach(concept => {
     const card = document.createElement("div");
@@ -2491,8 +2507,8 @@ function renderConceptCards() {
     });
 
     // Is this the active concept?
-    const isActive     = state.activeConcept === concept.id;
-    const isPinned     = !!concept.isPinned;
+    const isActive = state.activeConcept === concept.id;
+    const isPinned = !!concept.isPinned;
     const isBookmarked = !!concept.isBookmarked;
 
     card.innerHTML = `
@@ -2577,7 +2593,7 @@ function renderConceptCards() {
 
 // ---- PIN & BOOKMARK TOGGLES ----
 
-window.toggleConceptPin = function(conceptId, event) {
+window.toggleConceptPin = function (conceptId, event) {
   if (event) event.stopPropagation();
   const concept = state.concepts.find(c => c.id === conceptId);
   if (!concept) return;
@@ -2596,7 +2612,7 @@ window.toggleConceptPin = function(conceptId, event) {
   renderConceptCards();
 };
 
-window.toggleConceptBookmark = function(conceptId, event) {
+window.toggleConceptBookmark = function (conceptId, event) {
   if (event) event.stopPropagation();
   const concept = state.concepts.find(c => c.id === conceptId);
   if (!concept) return;
@@ -2780,7 +2796,7 @@ function closeConceptModal() {
   document.body.style.overflow = "";
 }
 
-window.handleConceptModalOverlayClick = function(e) {
+window.handleConceptModalOverlayClick = function (e) {
   if (e.target.id === "save-concept-modal") closeConceptModal();
 };
 
@@ -2881,7 +2897,7 @@ function saveConceptFromModal() {
     const phase = state.phases.find(p => p.id === phaseId);
     if (!phase) return;
     if (!layersMap[layerName]) layersMap[layerName] = [];
-    
+
     let phaseCopy = JSON.parse(JSON.stringify(phase));
     ensurePhaseStructure(phaseCopy);
     phaseCopy._originalIndex = phaseIndexCounter++;
@@ -3080,7 +3096,7 @@ function openBookmarkModal() {
         state.phases.forEach(phase => {
           const layerName = phase._layerName || "medium";
           if (!layersMap[layerName]) layersMap[layerName] = [];
-          
+
           let phaseCopy = JSON.parse(JSON.stringify(phase));
           ensurePhaseStructure(phaseCopy);
           phaseCopy._originalIndex = phaseIndexCounter++;
@@ -3110,7 +3126,7 @@ function closeBookmarkModal() {
   document.body.style.overflow = "";
 }
 
-window.handleBookmarkModalOverlayClick = function(e) {
+window.handleBookmarkModalOverlayClick = function (e) {
   if (e.target.id === "bookmark-list-modal") closeBookmarkModal();
 };
 
@@ -3222,7 +3238,7 @@ async function commitToConceptHistory() {
 
 // ---- CONCEPT ARCHIVE & EXTRA ACTIONS ----
 
-window.renderConceptArchive = function() {
+window.renderConceptArchive = function () {
   const container = document.getElementById("concept-archive-list-container");
   if (!container) return;
   container.innerHTML = "";
@@ -3269,7 +3285,7 @@ window.renderConceptArchive = function() {
   });
 };
 
-window.restoreCommit = function(conceptId, commitId) {
+window.restoreCommit = function (conceptId, commitId) {
   const concept = state.concepts.find(c => c.id === conceptId);
   if (!concept) return;
 
@@ -3288,7 +3304,7 @@ window.restoreCommit = function(conceptId, commitId) {
   state.phases.forEach(phase => {
     const layerName = phase._layerName || "medium";
     if (!layersMap[layerName]) layersMap[layerName] = [];
-    
+
     let phaseCopy = JSON.parse(JSON.stringify(phase));
     ensurePhaseStructure(phaseCopy);
     phaseCopy._originalIndex = phaseIndexCounter++;
@@ -3301,7 +3317,7 @@ window.restoreCommit = function(conceptId, commitId) {
   renderApp();
 };
 
-window.deleteCommit = async function(conceptId, commitId) {
+window.deleteCommit = async function (conceptId, commitId) {
   const concept = state.concepts.find(c => c.id === conceptId);
   if (!concept) return;
 
@@ -3331,7 +3347,7 @@ window.deleteCommit = async function(conceptId, commitId) {
   }
 };
 
-window.startEditConceptTitle = function(conceptId, event) {
+window.startEditConceptTitle = function (conceptId, event) {
   if (event) event.stopPropagation();
   const concept = state.concepts.find(c => c.id === conceptId);
   if (!concept) return;
@@ -3357,7 +3373,7 @@ window.startEditConceptTitle = function(conceptId, event) {
   }
 };
 
-window.handleEditConceptTitleKeydown = function(e, conceptId) {
+window.handleEditConceptTitleKeydown = function (e, conceptId) {
   if (e.key === "Enter") {
     e.preventDefault();
     saveConceptTitle(conceptId);
@@ -3366,7 +3382,7 @@ window.handleEditConceptTitleKeydown = function(e, conceptId) {
   }
 };
 
-window.saveConceptTitle = function(conceptId) {
+window.saveConceptTitle = function (conceptId) {
   const input = document.getElementById(`edit-concept-title-input-${conceptId}`);
   if (!input) return;
 
@@ -3386,14 +3402,14 @@ window.saveConceptTitle = function(conceptId) {
 
 // State for the currently open timeline
 let _timelineConceptId = null;   // which concept's tree is open
-let _activeDiffIndex   = null;   // index in commits[] of the OLDER commit in the selected diff pair
-let _activeDiffTab     = 'note'; // currently selected diff tab
+let _activeDiffIndex = null;   // index in commits[] of the OLDER commit in the selected diff pair
+let _activeDiffTab = 'note'; // currently selected diff tab
 
 /**
  * Called from the card's "tree" button.
  * Shows the TIME-LINE TREE panel for the given concept.
  */
-window.toggleConceptTree = async function(conceptId, event) {
+window.toggleConceptTree = async function (conceptId, event) {
   if (event) event.stopPropagation();
 
   const panel = document.getElementById('timeline-tree-panel');
@@ -3406,8 +3422,8 @@ window.toggleConceptTree = async function(conceptId, event) {
   }
 
   _timelineConceptId = conceptId;
-  _activeDiffIndex   = null;
-  _activeDiffTab     = 'note';
+  _activeDiffIndex = null;
+  _activeDiffTab = 'note';
 
   const concept = state.concepts.find(c => c.id === conceptId);
   if (!concept) return;
@@ -3442,17 +3458,17 @@ window.toggleConceptTree = async function(conceptId, event) {
 /**
  * Close the timeline panel.
  */
-window.closeTimelineTree = function() {
+window.closeTimelineTree = function () {
   const panel = document.getElementById('timeline-tree-panel');
   if (panel) panel.classList.add('hidden');
   _timelineConceptId = null;
-  _activeDiffIndex   = null;
+  _activeDiffIndex = null;
 };
 
 /**
  * Scroll the timeline list up (-1) or down (+1) by one page step.
  */
-window.scrollTimeline = function(dir) {
+window.scrollTimeline = function (dir) {
   const list = document.getElementById('timeline-list');
   if (!list) return;
   list.scrollBy({ top: dir * 80, behavior: 'smooth' });
@@ -3463,7 +3479,7 @@ window.scrollTimeline = function(dir) {
  */
 function renderTimelineTree(conceptId) {
   const concept = state.concepts.find(c => c.id === conceptId);
-  const list    = document.getElementById('timeline-list');
+  const list = document.getElementById('timeline-list');
   if (!concept || !list) return;
 
   list.innerHTML = '';
@@ -3527,14 +3543,14 @@ function renderTimelineTree(conceptId) {
 function formatTimestampFull(isoStr) {
   const d = new Date(isoStr);
   const pad = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())}/${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())}/${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
 /**
  * Restore a specific commit's phases to the ARCHIVE panel
  * (does NOT touch current workspace).
  */
-window.restoreCommitToArchive = function(conceptId, commitId) {
+window.restoreCommitToArchive = function (conceptId, commitId) {
   const concept = state.concepts.find(c => c.id === conceptId);
   if (!concept) return;
   const commit = (concept.commits || []).find(c => c.id === commitId);
@@ -3543,7 +3559,7 @@ window.restoreCommitToArchive = function(conceptId, commitId) {
   if (!confirm(`「${commit.message}」の構成をSTYLE CONCEPT ARCHIVEに退避・保存しますか？\n（ワークスペースは変更されません）`)) return;
 
   if (!Array.isArray(concept.archivedCommits)) concept.archivedCommits = [];
-  
+
   const alreadyArchived = concept.archivedCommits.some(a => a.sourceCommitId === commitId);
   if (alreadyArchived) {
     showToast(`「${commit.message}」は既にARCHIVEに存在します。`, 'warning');
@@ -3571,7 +3587,7 @@ window.restoreCommitToArchive = function(conceptId, commitId) {
 };
 
 // アーカイブカード専用の復元・削除ヘルパー関数を追記
-window.restoreArchivedCardDirectly = function(conceptId, commitId) {
+window.restoreArchivedCardDirectly = function (conceptId, commitId) {
   const concept = state.concepts.find(c => c.id === conceptId);
   if (!concept) return;
   const commit = (concept.commits || []).find(c => c.id === commitId);
@@ -3582,14 +3598,14 @@ window.restoreArchivedCardDirectly = function(conceptId, commitId) {
   restoredPhases.forEach(ensurePhaseStructure);
   state.phases = restoredPhases;
   state.activeConcept = conceptId;
-  
+
   // layers も復元した状態のディープコピーで同期する
   const layersMap = {};
   let phaseIndexCounter = 0;
   state.phases.forEach(phase => {
     const layerName = phase._layerName || "medium";
     if (!layersMap[layerName]) layersMap[layerName] = [];
-    
+
     let phaseCopy = JSON.parse(JSON.stringify(phase));
     ensurePhaseStructure(phaseCopy);
     phaseCopy._originalIndex = phaseIndexCounter++;
@@ -3597,13 +3613,13 @@ window.restoreArchivedCardDirectly = function(conceptId, commitId) {
   });
   concept.layers = layersMap;
   saveConceptsToStorage();
-  
+
   if (typeof updateCommitButton === "function") updateCommitButton();
   renderApp();
   showToast(`アーカイブから「${commit.message}」を復元しました`);
 };
 
-window.deleteArchivedCommitDirectly = function(conceptId, archId) {
+window.deleteArchivedCommitDirectly = function (conceptId, archId) {
   const concept = state.concepts.find(c => c.id === conceptId);
   if (!concept || !Array.isArray(concept.archivedCommits)) return;
   const idx = concept.archivedCommits.findIndex(a => a.id === archId);
@@ -3619,10 +3635,10 @@ window.deleteArchivedCommitDirectly = function(conceptId, archId) {
 /**
  * Open the diff panel for the gap between commits[idx] and commits[idx+1].
  */
-window.openDiff = function(conceptId, olderIdx) {
+window.openDiff = function (conceptId, olderIdx) {
   _timelineConceptId = conceptId;
-  _activeDiffIndex   = olderIdx;
-  _activeDiffTab     = 'note';
+  _activeDiffIndex = olderIdx;
+  _activeDiffTab = 'note';
 
   // Re-render timeline to reflect active state
   renderTimelineTree(conceptId);
@@ -3639,7 +3655,7 @@ window.openDiff = function(conceptId, olderIdx) {
  * @param {string} tab
  * @param {boolean} [updateState=true]
  */
-window.switchDiffTab = function(tab, updateState = true) {
+window.switchDiffTab = function (tab, updateState = true) {
   if (updateState) _activeDiffTab = tab;
 
   // Update tab button styles
@@ -3673,12 +3689,12 @@ function renderDiffTab(tab) {
   const label = `${olderCommit.message} → ${newerCommit.message}`;
 
   switch (tab) {
-    case 'note':   area.innerHTML = renderDiffNote(concept, olderCommit, newerCommit); break;
+    case 'note': area.innerHTML = renderDiffNote(concept, olderCommit, newerCommit); break;
     case 'weight': area.innerHTML = renderDiffWeight(olderCommit, newerCommit, label); break;
-    case 'token':  area.innerHTML = renderDiffToken(olderCommit, newerCommit, label); break;
-    case 'core':   area.innerHTML = renderDiffCore(olderCommit, newerCommit, label); break;
-    case 'pattern':area.innerHTML = renderDiffPattern(olderCommit, newerCommit, label); break;
-    case 'phase':  area.innerHTML = renderDiffPhase(olderCommit, newerCommit, label); break;
+    case 'token': area.innerHTML = renderDiffToken(olderCommit, newerCommit, label); break;
+    case 'core': area.innerHTML = renderDiffCore(olderCommit, newerCommit, label); break;
+    case 'pattern': area.innerHTML = renderDiffPattern(olderCommit, newerCommit, label); break;
+    case 'phase': area.innerHTML = renderDiffPhase(olderCommit, newerCommit, label); break;
     default: area.innerHTML = '';
   }
 
@@ -3729,7 +3745,7 @@ function renderDiffWeight(olderCommit, newerCommit, label) {
     newTokens.forEach(newTok => {
       const oldTok = oldTokens.find(t => t.id === newTok.id);
       if (!oldTok) return;
-      
+
       const oldWVal = (oldTok.weight !== undefined && oldTok.weight !== null && !isNaN(parseFloat(oldTok.weight))) ? parseFloat(oldTok.weight) : 1.0;
       const newWVal = (newTok.weight !== undefined && newTok.weight !== null && !isNaN(parseFloat(newTok.weight))) ? parseFloat(newTok.weight) : 1.0;
 
@@ -3784,14 +3800,14 @@ function renderDiffToken(olderCommit, newerCommit, label) {
     const newTokens = getAllPhaseTokens(newPhase);
     const oldTokens = oldPhase ? getAllPhaseTokens(oldPhase) : [];
 
-    const addedIds   = newTokens.filter(t => !oldTokens.find(o => o.id === t.id));
+    const addedIds = newTokens.filter(t => !oldTokens.find(o => o.id === t.id));
     const removedIds = oldTokens.filter(t => !newTokens.find(n => n.id === t.id));
 
     if (addedIds.length === 0 && removedIds.length === 0) return;
     hasChange = true;
 
     fluctHtml += `<div class="text-[10px] font-bold text-slate-400 mt-2 mb-1 uppercase">${newPhase.name}</div>`;
-    
+
     // 【修正①】 トークン増減の文字列横に [Pattern x] を併記
     addedIds.forEach(t => {
       let ctx = getTokenPatternContext(newPhase, t.id);
@@ -3838,12 +3854,12 @@ function renderDiffToken(olderCommit, newerCommit, label) {
 // =========================================================
 
 // サブタブ切り替え制御
-window.switchTokenSubTab = function(subTab) {
+window.switchTokenSubTab = function (subTab) {
   const fluctBtn = document.getElementById('btn-diff-fluctuation');
   const rearrBtn = document.getElementById('btn-diff-rearrangement');
   const fluctView = document.getElementById('token-diff-fluctuation-view');
   const rearrView = document.getElementById('token-diff-rearrangement-view');
-  
+
   if (!fluctBtn || !rearrBtn || !fluctView || !rearrView) return;
 
   if (subTab === 'fluctuation') {
@@ -3867,10 +3883,10 @@ function isPatternChanged(oldPat, newPat) {
   const newToks = newPat.tokens || [];
   if (oldToks.length !== newToks.length) return true; // 増減あり
   for (let i = 0; i < oldToks.length; i++) {
-    if (oldToks[i].id !== newToks[i].id || 
-        oldToks[i].text !== newToks[i].text || 
-        parseFloat(oldToks[i].weight) !== parseFloat(newToks[i].weight) || 
-        oldToks[i].isActive !== newToks[i].isActive) {
+    if (oldToks[i].id !== newToks[i].id ||
+      oldToks[i].text !== newToks[i].text ||
+      parseFloat(oldToks[i].weight) !== parseFloat(newToks[i].weight) ||
+      oldToks[i].isActive !== newToks[i].isActive) {
       return true; // 順序、文字、ウェイト、アクティブ状態のいずれかが変更
     }
   }
@@ -3898,7 +3914,7 @@ function renderRearrangementView(olderCommit, newerCommit) {
     if (isNeg) {
       const oldToks = oldPhase ? (oldPhase.tokens || []) : [];
       const newToks = newPhase ? (newPhase.tokens || []) : [];
-      if (isPatternChanged({tokens: oldToks}, {tokens: newToks})) {
+      if (isPatternChanged({ tokens: oldToks }, { tokens: newToks })) {
         phaseChangesHtml += `<button class="rearrangement-pat-btn block text-left text-pink-400 font-bold text-xs py-1 hover:text-pink-300 transition uppercase tracking-wide" onclick="openRearrangementModal('${phaseId}', null)">TOKENS</button>`;
       }
     } else {
@@ -3926,11 +3942,11 @@ function renderRearrangementView(olderCommit, newerCommit) {
 }
 
 // 【修正③】 REARRANGEMENT モーダルの展開ロジック
-window.openRearrangementModal = function(phaseId, patternIndex) {
+window.openRearrangementModal = function (phaseId, patternIndex) {
   if (_activeDiffIndex === null || _timelineConceptId === null) return;
   const concept = state.concepts.find(c => c.id === _timelineConceptId);
   if (!concept || !concept.commits) return;
-  
+
   const olderCommit = concept.commits[_activeDiffIndex];
   const newerCommit = concept.commits[_activeDiffIndex + 1];
   if (!olderCommit || !newerCommit) return;
@@ -3986,7 +4002,7 @@ window.openRearrangementModal = function(phaseId, patternIndex) {
 };
 
 // モーダルを閉じるアクション
-window.closeRearrangementModal = function() {
+window.closeRearrangementModal = function () {
   const modal = document.getElementById('rearrangement-modal');
   const content = document.getElementById('rearrangement-modal-content');
   if (modal && !modal.classList.contains('hidden')) {
@@ -4016,14 +4032,14 @@ function renderDiffCore(olderCommit, newerCommit, label) {
 
   newerCommit.phases.forEach(newPhase => {
     if (newPhase.isNegative) return;
-    const oldPhase  = olderCommit.phases.find(p => p.id === newPhase.id);
+    const oldPhase = olderCommit.phases.find(p => p.id === newPhase.id);
     const newTokens = getAllPhaseTokens(newPhase);
     const oldTokens = oldPhase ? getAllPhaseTokens(oldPhase) : [];
 
     newTokens.forEach(newTok => {
       const oldTok = oldTokens.find(t => t.id === newTok.id);
       const wasCore = oldTok ? !!oldTok.isCore : false;
-      const isCore  = !!newTok.isCore;
+      const isCore = !!newTok.isCore;
       if (wasCore !== isCore) {
         hasChange = true;
         if (isCore) {
@@ -4049,10 +4065,10 @@ function renderDiffPattern(olderCommit, newerCommit, label) {
   newerCommit.phases.forEach(newPhase => {
     if (newPhase.isNegative) return;
     const oldPhase = olderCommit.phases.find(p => p.id === newPhase.id);
-    const newPats  = newPhase.patterns || [];
-    const oldPats  = oldPhase ? (oldPhase.patterns || []) : [];
+    const newPats = newPhase.patterns || [];
+    const oldPats = oldPhase ? (oldPhase.patterns || []) : [];
 
-    const added   = newPats.length - oldPats.length;
+    const added = newPats.length - oldPats.length;
     if (added === 0) return;
     hasChange = true;
 
@@ -4075,7 +4091,7 @@ function renderDiffPhase(olderCommit, newerCommit, label) {
   const newIds = newerCommit.phases.map(p => p.id);
 
   // Added
-  const addedPhases   = newerCommit.phases.filter(p => !oldIds.includes(p.id));
+  const addedPhases = newerCommit.phases.filter(p => !oldIds.includes(p.id));
   // Removed
   const removedPhases = olderCommit.phases.filter(p => !newIds.includes(p.id));
 
@@ -4142,7 +4158,7 @@ function getTokenPatternContext(phase, tokenId) {
   return '';
 }
 
-window.exportSingleConcept = function(conceptId, event) {
+window.exportSingleConcept = function (conceptId, event) {
   if (event) event.stopPropagation();
   const concept = state.concepts.find(c => c.id === conceptId);
   if (!concept) return;
@@ -4159,7 +4175,7 @@ window.exportSingleConcept = function(conceptId, event) {
 
 // Patch renderApp to also refresh Concept Library
 const _originalRenderApp = renderApp;
-renderApp = function() {
+renderApp = function () {
   _originalRenderApp();
   renderConceptLibrary();
 };
@@ -4190,63 +4206,69 @@ let lastSemanticResult = null;
 // type: 'constraint' | 'restraint' | 'condition'
 const TOPO_RULES = [
   // --- CONSTRAINT (拘束系): structural/boundary/confinement terms ---
-  { type: 'constraint', keywords: [
-    'confined', 'boundary', 'structure', 'hierarchy', 'structural', 'form-defin',
-    'restrained', 'distribution', 'conditioned', 'constraint', 'constrain',
-    'pressure-coherent', 'layered structure', 'density-coherent', 'value-structure',
-    'form continuity', 'identity-preserving', 'identity preservation',
-    'density-stratified', 'particulate aggregation', 'dispersion field restraint',
-    'primary form', 'morphology preserved', 'curvature-driven', 'stereomaticy',
-    'sediment grouping', 'coherence', 'field restraint', 'field-conditioned',
-    'structural drapery', 'garment flow', 'fold hierarchy', 'pressure-coherent layering',
-    'architectural', 'spatial layering', 'structural rhythm', 'bamboo columns',
-    'depth-guided', 'enclosure', 'ornamental variance', 'structural continuity',
-    'form-defining', 'tonal hierarchy', 'value-stratified', 'luminance hierarchy',
-    'stratification', 'stratified', 'density-linked', 'density-gradient',
-    'density differentiation', 'multi-scale', 'spatial hierarchy', 'depth stratification',
-    // Added general constraint keywords
-    'sharp focus', 'detailed', 'highly detailed', 'anatomy', 'eyes', 'face', 'body', 'pose', 'character', 'intricate'
-  ]},
+  {
+    type: 'constraint', keywords: [
+      'confined', 'boundary', 'structure', 'hierarchy', 'structural', 'form-defin',
+      'restrained', 'distribution', 'conditioned', 'constraint', 'constrain',
+      'pressure-coherent', 'layered structure', 'density-coherent', 'value-structure',
+      'form continuity', 'identity-preserving', 'identity preservation',
+      'density-stratified', 'particulate aggregation', 'dispersion field restraint',
+      'primary form', 'morphology preserved', 'curvature-driven', 'stereomaticy',
+      'sediment grouping', 'coherence', 'field restraint', 'field-conditioned',
+      'structural drapery', 'garment flow', 'fold hierarchy', 'pressure-coherent layering',
+      'architectural', 'spatial layering', 'structural rhythm', 'bamboo columns',
+      'depth-guided', 'enclosure', 'ornamental variance', 'structural continuity',
+      'form-defining', 'tonal hierarchy', 'value-stratified', 'luminance hierarchy',
+      'stratification', 'stratified', 'density-linked', 'density-gradient',
+      'density differentiation', 'multi-scale', 'spatial hierarchy', 'depth stratification',
+      // Added general constraint keywords
+      'sharp focus', 'detailed', 'highly detailed', 'anatomy', 'eyes', 'face', 'body', 'pose', 'character', 'intricate'
+    ]
+  },
 
   // --- RESTRAINT (抑制・減衰系): attenuation/suppression/moderation terms ---
-  { type: 'restraint', keywords: [
-    'restrain', 'attenuat', 'decay', 'reduction', 'suppression', 'subordinat',
-    'modulated', 'muted', 'restrained distribution', 'restrained ornamental',
-    'restrained particulate', 'restrained dispersion', 'moisture decay',
-    'sedimentation attenuation', 'edge softness', 'density-gradient attenuation',
-    'restrained migration', 'micro tonal variation', 'localized variance',
-    'variance retention', 'low-intensity', 'diffused low-intensity',
-    'passive', 'soft cloth', 'shallow depth', 'mid-key', 'gentle', 'subtle',
-    'pigment strictly confined', 'liquid-paper interaction domain',
-    'chroma constrained', 'chroma subordinated', 'chroma modulated',
-    'grayscale regime', 'value-field dominance', 'global tonal condition',
-    'field-level convergence', 'density-consistent', 'global field cohesion',
-    'overall mixing bias', 'over-mixing', 'homogenization', 'over-articulated',
-    'over-sharpening', 'pixel-level discretization', 'line-trace exaggeration',
-    'manifold flattening', 'normalization preference', 'shape drift',
-    // Added general restraint keywords
-    'soft lighting', 'smooth', 'blurred background', 'depth of field', 'desaturated', 'pastel', 'dim', 'subdued'
-  ]},
+  {
+    type: 'restraint', keywords: [
+      'restrain', 'attenuat', 'decay', 'reduction', 'suppression', 'subordinat',
+      'modulated', 'muted', 'restrained distribution', 'restrained ornamental',
+      'restrained particulate', 'restrained dispersion', 'moisture decay',
+      'sedimentation attenuation', 'edge softness', 'density-gradient attenuation',
+      'restrained migration', 'micro tonal variation', 'localized variance',
+      'variance retention', 'low-intensity', 'diffused low-intensity',
+      'passive', 'soft cloth', 'shallow depth', 'mid-key', 'gentle', 'subtle',
+      'pigment strictly confined', 'liquid-paper interaction domain',
+      'chroma constrained', 'chroma subordinated', 'chroma modulated',
+      'grayscale regime', 'value-field dominance', 'global tonal condition',
+      'field-level convergence', 'density-consistent', 'global field cohesion',
+      'overall mixing bias', 'over-mixing', 'homogenization', 'over-articulated',
+      'over-sharpening', 'pixel-level discretization', 'line-trace exaggeration',
+      'manifold flattening', 'normalization preference', 'shape drift',
+      // Added general restraint keywords
+      'soft lighting', 'smooth', 'blurred background', 'depth of field', 'desaturated', 'pastel', 'dim', 'subdued'
+    ]
+  },
 
   // --- CONDITION (条件・相互作用系): field/interaction/emergence terms ---
-  { type: 'condition', keywords: [
-    'condition', 'interaction', 'driven by', 'induced', 'emerging', 'emergence',
-    'governed by', 'governing', 'paper absorption', 'moisture', 'capillary',
-    'pigment deposition', 'pigment migration', 'pigment density', 'pigment behavior',
-    'granular aggregation', 'micro-turbulent', 'differential absorption',
-    'sediment', 'sedimentation', 'particulate', 'accumulation front',
-    'density grouping', 'tonal formation', 'pseudo-luminance', 'luminance bleed',
-    'localized tonal', 'tonal continuity', 'tonal regime', 'mid-frequency',
-    'global convergence', 'field cohesion', 'phase alignment', 'multi-phase',
-    'pigment-density gradients', 'emergent', 'interferen', 'focal point',
-    'edge-darkening', 'localized pigment', 'micro focal', 'edge integration',
-    'depth-stratified', 'field-level', 'paper-bound', 'paper-surface',
-    'heterogeneity', 'absorption heterogeneity', 'field harmony', 'field persistence',
-    'environmental', 'ambient illumination', 'depth attenuation',
-    'curvature-driven architectural', 'background depth', 'particulate-density falloff',
-    // Added general condition keywords
-    'lighting', 'illumination', 'fog', 'atmosphere', 'raytracing', 'cinematic', 'volumetric', 'ambient', 'environment', 'bloom'
-  ]}
+  {
+    type: 'condition', keywords: [
+      'condition', 'interaction', 'driven by', 'induced', 'emerging', 'emergence',
+      'governed by', 'governing', 'paper absorption', 'moisture', 'capillary',
+      'pigment deposition', 'pigment migration', 'pigment density', 'pigment behavior',
+      'granular aggregation', 'micro-turbulent', 'differential absorption',
+      'sediment', 'sedimentation', 'particulate', 'accumulation front',
+      'density grouping', 'tonal formation', 'pseudo-luminance', 'luminance bleed',
+      'localized tonal', 'tonal continuity', 'tonal regime', 'mid-frequency',
+      'global convergence', 'field cohesion', 'phase alignment', 'multi-phase',
+      'pigment-density gradients', 'emergent', 'interferen', 'focal point',
+      'edge-darkening', 'localized pigment', 'micro focal', 'edge integration',
+      'depth-stratified', 'field-level', 'paper-bound', 'paper-surface',
+      'heterogeneity', 'absorption heterogeneity', 'field harmony', 'field persistence',
+      'environmental', 'ambient illumination', 'depth attenuation',
+      'curvature-driven architectural', 'background depth', 'particulate-density falloff',
+      // Added general condition keywords
+      'lighting', 'illumination', 'fog', 'atmosphere', 'raytracing', 'cinematic', 'volumetric', 'ambient', 'environment', 'bloom'
+    ]
+  }
 ];
 
 /**
@@ -4267,69 +4289,88 @@ function classifyTokenTopology(text) {
 
 // ---- Assessment keyword definitions ----
 // Each target has: id, required keywords (any match → "detected"), reinforcers (boost stability)
+// ① grisaille + wetonwet → mid-frequency に統合
+// ③ composition / subject_core / optics_luminance / atmosphere_diffusion を新規追加
 const ASSESSMENT_TARGETS = [
   {
     id: 'style',
+    label: 'スタイル/メディア層',
     keywords: [
       'daniel-smith', 'pastel watercolor', 'pastel water', 'grisaille',
       'pigment migration', 'granular aggregation', 'pigment granulation', 'coarse pigment',
       'capillary-mediated', 'capillary', 'pigment deposition', 'granulation',
       'sediment', 'micro-turbulent', 'moisture-boundary', 'watercolor', 'simulated',
-      // NEW additions:
-      'art', 'painting', 'drawing', 'sketch', 'oil', 'acrylic', 'illustration', 'concept art', 'rendering', 'style', 'medium', 'digital', 'masterpiece', 'aesthetics', 'cyberpunk', 'anime'
+      // General style keywords
+      'art', 'painting', 'drawing', 'sketch', 'oil', 'acrylic', 'illustration', 'concept art',
+      'rendering', 'style', 'medium', 'digital', 'masterpiece', 'aesthetics', 'cyberpunk', 'anime',
+      'oil painting', 'digital painting', 'photography', 'raw photo', 'cel-shading',
+      'studio ghibli', 'impasto', 'ukiyo-e', 'pixel art', 'low poly', 'vector art',
+      'pencil sketch', 'charcoal drawing', 'ink wash', 'gouache', 'pastel art'
     ],
     reinforcers: [
       'density-coherent', 'value-structure', 'moisture decay', 'pigment strictly confined',
       'paper absorption', 'particulate aggregation', 'dispersion field restraint',
-      'highly detailed', 'sharp focus', 'intricate'
+      'highly detailed', 'sharp focus', 'intricate',
+      'artstation', 'trending on artstation', 'award winning', 'professional', 'best quality'
     ],
     negDangers: [
       'tonal smoothing', 'over-mixing', 'pixel-level', 'manifold flattening',
       'homogenization', 'grain over-equalization', 'over-articulated',
-      'low quality', 'jpeg artifacts', 'blurry', 'bad art'
+      'low quality', 'jpeg artifacts', 'blurry', 'bad art',
+      'out of style', 'wrong style', 'inconsistent style'
     ]
   },
   {
-    id: 'grisaille',
+    // ① grisaille (中周波トーン構造層) + wetonwet (湿潤拡散層) を統合
+    id: 'mid-frequency',
+    label: '中間トーン調/中周波構造層',
     keywords: [
+      // --- grisaille 由来 ---
       'grisaille', 'value-structure', 'value-stratified', 'midtone', 'mid-key',
       'tonal continuity', 'tonal hierarchy', 'grayscale', 'global midtone',
       'mid-frequency tonal', 'density-coherent tonal', 'luminance distribution',
       'tonal redistribution', 'global value-field', 'tonal field',
-      'monochrome', 'black and white'
-    ],
-    reinforcers: [
-      'global convergence', 'density-coherent particulate', 'form continuity',
-      'identity preservation', 'value-field continuity', 'density-explicit gradient',
-      'tonal phase alignment', 'mid-key tonal', 'density-structured tonal',
-      'contrast', 'cinematic lighting'
-    ],
-    negDangers: [
-      'tonal smoothing', 'overall incline homogenization', 'sectional shape drift',
-      'feature over-sharpening', 'line-based shape', 'pixel-level discretization',
-      'colorful', 'flat colors'
-    ]
-  },
-  {
-    id: 'wetonwet',
-    keywords: [
+      'monochrome', 'black and white',
+      'monochrome underpainting', 'grey underpainting', 'dead layer',
+      'tonal value study', 'chiaroscuro', 'grayscale rendering', 'value mapping',
+      'tonal gradation', 'mid-tone structure',
+      // --- wetonwet 由来 ---
       'capillary-mediated', 'moisture-boundary', 'moisture decay', 'moisture',
       'pigment migration', 'edge definition via moisture', 'pigment strictly confined',
       'liquid-paper interaction', 'paper-surface-emergent', 'paper absorption',
       'paper-bound', 'edge-darkening', 'accumulation front', 'micro-turbulent',
-      'wet', 'diffusion', 'pigment density grouping', 'capillary',
-      'fluid', 'ink wash'
+      'wet', 'diffusion', 'pigment density grouping', 'capillary', 'fluid', 'ink wash',
+      'wet-on-wet', 'wet on wet', 'soft blending', 'feathered edges', 'colour bleeding',
+      'pigment diffusion', 'paint bleed', 'soft edge transition', 'colour blending',
+      'watercolour bleed', 'glazing technique', 'impasto blending'
     ],
     reinforcers: [
+      // --- grisaille 由来 ---
+      'global convergence', 'density-coherent particulate', 'form continuity',
+      'identity preservation', 'value-field continuity', 'density-explicit gradient',
+      'tonal phase alignment', 'mid-key tonal', 'density-structured tonal',
+      'contrast', 'cinematic lighting',
+      // --- wetonwet 由来 ---
       'differential pigment absorption', 'sediment grouping', 'restrained particulate migration',
       'depth-aware sedimentation', 'edge softness', 'density-gradient attenuation',
-      'paper-absorption heterogeneity',
-      'soft edges', 'blend'
+      'paper-absorption heterogeneity', 'soft edges', 'blend',
+      // --- 共通強化語 ---
+      'subtle tonal shift', 'smooth gradient', 'soft shadow', 'mid-tone harmony',
+      'tonal balance', 'value contrast', 'painterly blend', 'diffused transition'
     ],
     negDangers: [
-      'over-mixing homogenization', 'fluid over-mixing', 'tonal smoothing',
+      // --- grisaille 由来 ---
+      'tonal smoothing', 'overall incline homogenization', 'sectional shape drift',
+      'feature over-sharpening', 'line-based shape', 'pixel-level discretization',
+      'colorful', 'flat colors',
+      // --- wetonwet 由来 ---
+      'over-mixing homogenization', 'fluid over-mixing',
       'grain over-equalization', 'brushstroke', 'paint bleed',
-      'sharp edges', 'hard lines'
+      'sharp edges', 'hard lines',
+      // --- 共通危険語 ---
+      'grain over-equalization bias', 'tonal smoothing tendency', 'over-blended',
+      'muddy colors', 'flat tones', 'loss of texture', 'over-saturated',
+      'harsh edge', 'abrupt transition', 'posterization'
     ]
   },
   {
@@ -4340,7 +4381,7 @@ const ASSESSMENT_TARGETS = [
       'layered garment', 'fabric micro-fold', 'fabric tonal', 'costume',
       'pressure-coherent layering', 'garment pressure',
       // NEW additions:
-      'armor', 'clothes', 'clothing', 'attire', 'suit', 'dress', 'jacket', 'shirt', 'garment', 'outfit', 'wear', 'uniform', 'robe', 'fabric'
+      'armor', 'clothes', 'clothing', 'attire', 'suit', 'dress', 'jacket', 'shirt', 'garment', 'outfit', 'wear', 'uniform', 'robe', 'fabric', 'kimono', 'sweater', 'shoes', 'gloves', 'hat', 'boots', 'pants', 'bag', 'backpack', 'belt', 'tie', 'skirt', 'mask', 'veil', 'cloak', 'cape', 'accessories', 'corset', 'hanfu', 'hanbok', 'victorian dress', 'jacket', 'dress pants', 'military uniform', 'tactical gear', 'leather', 'denim', 'silk', 'cotton', 'wool', 'linen', 'velvet', 'lace', 'nylon', 'polyester', 'spandex', 'rayon', 'tweed', 'plaid', 'scarf', 'velvet', 'corduroy', 'fur', 'satin', 'jewellery', 'ring', 'necklace', 'bracelet', 'earring', 'brooch', 'pin', 'buckle', 'tiara', 'crown', 'headband', 'monocle', 'glasses', 'goggles', 'hoodies', 'hoods', 'sweatshirts', 'shorts', 'jeans', 't-shirt', 'turban', 'helmet', 'headphones', 'headset', 'earbuds', 'earphones', 'watch', 'bracelet', 'bangle', 'anklet', 'necklace', 'bonnet', 'circlet', 'satchel', 'sash', 'shawl', 'suspender', 'headchain', 'headdress', 'headpiece', 'knit', 'sailor', 'beret', 'pierce', 'heel', 'stocking', 'cabbie', 'shoulder pads', 'shoulder straps', 'shoulder bag', 'shoulder harness', 'cap', 'bicorne', 'tricorne', 'haori', 'fedora', 'beanie', 'ribbon', 'checkered', 'striped', 'habit', 'overalls', 'jumper', 'overcoat', 'spacesuit', 'gakuseibou', 'swimsuit', 'bikini', 'sundress', 'yukata', 'panties', 'pantyhose', 'lingerie', 'tutu', 'gakuran', 'seifuku', 'hakama', 'obi', 'tailcoat', 'gown', 'ballgown', 'ballerina', 'tunic', 'camisole', 'blouse', 'bodysuit', 'tuxedo', 'bustier', 'bustle', 'frill', 'vest', 'toga', 'capelet', 'slippers', 'leotard', 'dalmatica', 'maestoso', 'kabadion', 'pendant', 'vestment', 'sleeves', 'pannier', 'drapery', 'tailoring',
     ],
     reinforcers: [
       'primary semantic component', 'identity hierarchy', 'particulate-density grouping',
@@ -4355,25 +4396,141 @@ const ASSESSMENT_TARGETS = [
     ]
   },
   {
+    // ② 文言変更: 背景/建築空間構造層 → 背景/環境空間構造層
     id: 'background',
+    label: '背景/環境空間構造層',
     keywords: [
       'sino-gothic temple', 'black bamboo', 'bamboo columns', 'temple corridor',
       'architectural enclosure', 'depth-guided spatial', 'bamboo structural rhythm',
       'repetitive bamboo', 'quiet architectural', 'background depth',
       'curvature-driven architectural', 'scene-level environmental', 'background treated',
-      // NEW additions:
-      'city', 'street', 'building', 'background', 'landscape', 'interior', 'room', 'architecture', 'scene', 'environment', 'space', 'sky', 'forest', 'nature', 'scenery', 'outdoors', 'indoors'
+      // General background/environment keywords
+      'city', 'street', 'building', 'background', 'landscape', 'interior', 'room',
+      'architecture', 'scene', 'environment', 'space', 'sky', 'forest', 'nature',
+      'scenery', 'outdoors', 'indoors', 'castle', 'palace', 'dungeon', 'ruins',
+      'cave', 'mountain', 'sea', 'desert', 'volcano', 'planet', 'galaxy', 'universe',
+      'underwater', 'garden', 'flower', 'futuristic city', 'medieval town', 'village',
+      'library', 'temple', 'shrine', 'cathedral', 'alleyway', 'rooftop', 'outer space'
     ],
     reinforcers: [
       'particulate-density falloff', 'value-stratified spatial', 'restrained particulate dispersion',
       'field-conditioned alignment', 'depth attenuation', 'density-coherent particulate aggregation',
       'secondary semantic phase', 'global background variance', 'localized structural retention',
-      'volumetric fog', 'global illumination', 'depth of field'
+      'volumetric fog', 'global illumination', 'depth of field',
+      'detailed background', 'immersive environment', 'atmospheric', 'epic scenery',
+      'cinematic backdrop', 'richly detailed setting', 'expansive vista'
     ],
     negDangers: [
       'sectional shape drift', 'overall incline homogenization', 'manifold-definition normalization',
       'premature manifold flattening', 'shape definition erosion',
-      'flat background', 'white background'
+      'flat background', 'white background', 'plain background', 'blank background',
+      'no background', 'cluttered background', 'distracting background',
+      'anachronistic environment', 'inconsistent architecture'
+    ]
+  },
+  {
+    // ③ 新規追加: 構図/レイアウト構造層
+    id: 'composition',
+    label: '構図/レイアウト構造層',
+    keywords: [
+      'camera angle', 'golden ratio', 'vertical split', 'diagonal split',
+      'isometric 45°', 'circular vignette', 'triangle composition',
+      'comic panel layout', 'tiny world encapsulation', 'side view inside glass',
+      'rule of thirds', 'symmetrical composition', 'dynamic angle', "bird's eye view",
+      "worm's eye view", 'dutch angle', 'centered composition', 'off-center framing',
+      'foreground', 'midground', 'background layering', 'depth of field framing',
+      'wide angle', 'close-up', 'macro shot', 'establishing shot', 'over the shoulder',
+      'low angle', 'high angle', 'eye level', 'tilt shift', 'panoramic'
+    ],
+    reinforcers: [
+      'well composed', 'balanced layout', 'strong focal point', 'cinematic framing',
+      'visually dynamic', 'thoughtful composition', 'leading lines',
+      'depth of field', 'bokeh background', 'shallow focus'
+    ],
+    negDangers: [
+      'poor composition', 'unbalanced', 'cropped badly', 'off-frame subject',
+      'confusing layout', 'no focal point', 'cluttered framing', 'wrong perspective',
+      'bad framing', 'cut off', 'missing subject'
+    ]
+  },
+  {
+    // ③ 新規追加: 被写体/主体構造層
+    id: 'subject_core',
+    label: '被写体/主体構造層',
+    keywords: [
+      // 顔・キャラクター的特徴
+      'face', 'portrait', 'close-up', 'detailed face', 'expressive eyes', 'sharp eyes',
+      'beautiful face', 'young face', 'mature face', 'androgynous', 'humanoid',
+      'character design', 'original character', 'anime character', 'fantasy character',
+      'girl', 'boy', 'woman', 'man', 'elf', 'warrior', 'mage', 'knight', 'cyborg',
+      // キャラクターの動作系
+      'standing', 'sitting', 'running', 'jumping', 'flying', 'fighting', 'dancing',
+      'looking at viewer', 'looking away', 'turned back', 'crouching', 'leaning',
+      'reaching out', 'casting spell', 'wielding weapon', 'holding', 'embracing',
+      'walking', 'posing', 'kneeling', 'lying down', 'action pose', 'dynamic pose'
+    ],
+    reinforcers: [
+      'detailed character', 'expressive pose', 'dynamic action', 'lifelike',
+      'well-proportioned', 'anatomically correct', 'full body', 'half body',
+      'perfect anatomy', 'beautiful', 'elegant', 'heroic', 'intricate details'
+    ],
+    negDangers: [
+      'bad anatomy', 'deformed', 'extra limbs', 'missing limbs', 'wrong hands',
+      'bad hands', 'fused fingers', 'mutated', 'malformed', 'distorted face',
+      'uncanny valley', 'stiff pose', 'unnatural posture', 'bad proportions',
+      'deformed anatomy', 'extra fingers', 'missing fingers'
+    ]
+  },
+  {
+    // ③ 新規追加: 光学・レンズ/輝度拡散層
+    id: 'optics_luminance',
+    label: '光学・レンズ/輝度拡散層',
+    keywords: [
+      'golden-hour light rays', 'rim lighting', 'lens flare', 'iridescence',
+      'reflection', 'caustics', 'refraction', 'chromatic aberration',
+      'spectral dispersion', 'diffraction', 'bokeh', 'depth of field',
+      'anamorphic flare', 'crepuscular rays', 'god rays', 'subsurface scattering',
+      'specular highlight', 'fresnel effect', 'halo effect', 'light bloom',
+      'over-exposure glow', 'bioluminescence', 'phosphorescence',
+      'global illumination', 'raytracing', 'volumetric light', 'dramatic lighting',
+      'cinematic light', 'rim light', 'backlight', 'key light', 'fill light'
+    ],
+    reinforcers: [
+      'dramatic lighting', 'cinematic light', 'photorealistic lighting',
+      'physically based rendering', 'global illumination', 'raytracing',
+      'volumetric light', 'realistic shadows', 'light rays', 'soft light',
+      'studio lighting', 'natural lighting', 'golden hour'
+    ],
+    negDangers: [
+      'flat lighting', 'no shadows', 'overexposed', 'underexposed', 'blown out',
+      'lens distortion artifact', 'unwanted flare', 'color fringing', 'harsh flash',
+      'unnatural glow', 'luminance over-amplification bias',
+      'bad lighting', 'wrong light direction', 'no lighting'
+    ]
+  },
+  {
+    // ③ 新規追加: 雰囲気/大気拡散層
+    id: 'atmosphere_diffusion',
+    label: '雰囲気/大気拡散層',
+    keywords: [
+      'mist', 'miasma', 'ember field', 'rain curtain', 'fog', 'pollen drift',
+      'ash cloud', 'aurora veil', 'sand drift', 'smoke', 'haze', 'dust particles',
+      'steam', 'snowfall', 'rainfall', 'petals falling', 'fireflies',
+      'atmospheric perspective', 'aerial haze', 'morning mist', 'evening fog',
+      'volumetric fog', 'particle effects', 'magic particles',
+      'atmosphere', 'moody atmosphere', 'misty', 'foggy', 'rainy', 'stormy',
+      'ethereal', 'dreamy', 'hazy'
+    ],
+    reinforcers: [
+      'atmospheric', 'moody', 'evocative', 'immersive atmosphere',
+      'environmental storytelling', 'ethereal ambiance', 'dreamy',
+      'cinematic atmosphere', 'depth', 'layered atmosphere', 'soft focus',
+      'painterly atmosphere'
+    ],
+    negDangers: [
+      'clear sky only', 'no atmosphere', 'sterile environment', 'over-clean',
+      'airless scene', 'atmosphere suppression', 'over-sharpened air',
+      'fog removal', 'mist erasure', 'too sharp', 'clinical'
     ]
   }
 ];
@@ -4416,18 +4573,18 @@ function runSemanticAnalysis() {
 
   // Weight sums
   const wtConstraint = classified.constraint.reduce((s, t) => s + t.weight, 0);
-  const wtRestraint  = classified.restraint.reduce((s, t)  => s + t.weight, 0);
-  const wtCondition  = classified.condition.reduce((s, t)  => s + t.weight, 0);
-  const wtNeg        = negTokens.reduce((s, t) => s + (2.0 - t.weight), 0); // inversion: lower weight = stronger suppression
+  const wtRestraint = classified.restraint.reduce((s, t) => s + t.weight, 0);
+  const wtCondition = classified.condition.reduce((s, t) => s + t.weight, 0);
+  const wtNeg = negTokens.reduce((s, t) => s + (2.0 - t.weight), 0); // inversion: lower weight = stronger suppression
 
   // ---- Dominance score ----
   // Diffusion Dominance: driven by Constraint+Condition (style enforcement, particle physics)
   // Structure Subordinate: driven by Restraint (moderation, attenuation, hierarchical structuring)
-  const diffusionScore  = wtConstraint * 0.5 + wtCondition * 0.5;
-  const structureScore  = wtRestraint * 1.0 + (wtConstraint * 0.5); // constraint also anchors structure
-  const totalDomScore   = diffusionScore + structureScore || 1;
-  const pctDiffusion    = Math.round((diffusionScore / totalDomScore) * 100);
-  const pctStructure    = 100 - pctDiffusion;
+  const diffusionScore = wtConstraint * 0.5 + wtCondition * 0.5;
+  const structureScore = wtRestraint * 1.0 + (wtConstraint * 0.5); // constraint also anchors structure
+  const totalDomScore = diffusionScore + structureScore || 1;
+  const pctDiffusion = Math.round((diffusionScore / totalDomScore) * 100);
+  const pctStructure = 100 - pctDiffusion;
 
   // ---- Per-target assessment ----
   const assessments = {};
@@ -4437,8 +4594,8 @@ function runSemanticAnalysis() {
     const allPosText = posTokens.map(t => t.text.toLowerCase()).join(' ');
     const allNegText = negTokens.map(t => t.text.toLowerCase()).join(' ');
 
-    const matchedKws    = target.keywords.filter(kw => allPosText.includes(kw.toLowerCase()));
-    const matchedReinf  = target.reinforcers.filter(kw => allPosText.includes(kw.toLowerCase()));
+    const matchedKws = target.keywords.filter(kw => allPosText.includes(kw.toLowerCase()));
+    const matchedReinf = target.reinforcers.filter(kw => allPosText.includes(kw.toLowerCase()));
     const matchedDanger = target.negDangers.filter(kw => allNegText.includes(kw.toLowerCase()));
 
     const detected = matchedKws.length > 0;
@@ -4447,7 +4604,7 @@ function runSemanticAnalysis() {
     // base: (matchedKws / totalKeywords) * 100
     // bonus: reinforcers each add points
     // penalty: neg dangers detected in negative prompt reduce score
-    const kwScore    = detected ? (matchedKws.length / target.keywords.length) * 60 : 0;
+    const kwScore = detected ? (matchedKws.length / target.keywords.length) * 60 : 0;
     const reinfScore = matchedReinf.length * 5;      // each reinforcer +5
     const dangerPenalty = matchedDanger.length * 8;  // each danger -8
 
@@ -4474,7 +4631,7 @@ function runSemanticAnalysis() {
     };
   });
 
-  return {
+  const res = {
     posTokens,
     negTokens,
     totalTokens,
@@ -4487,6 +4644,136 @@ function runSemanticAnalysis() {
     pctStructure,
     assessments
   };
+  enrichSemanticDensityMetrics(res);
+  return res;
+}
+
+function enrichSemanticDensityMetrics(result) {
+  if (!result || result.totalTokens === 0) return;
+
+  // 1. Resolve ideal values
+  const ideal = result.idealValues || {
+    pctConstraint: 40,
+    pctRestraint: 30,
+    pctCondition: 30,
+    densityScore: 70
+  };
+  result.idealValues = ideal;
+
+  // 2. Map tokens to categories
+  const categoryMap = mapTokensToCategories(result.posTokens, result.tokenCategories || null);
+  result.categoryMap = categoryMap;
+
+  // Count active categories
+  const activeCategories = Object.keys(categoryMap).filter(cat => categoryMap[cat].length > 0);
+  const activeCategoriesCount = activeCategories.length;
+  result.conceptCategories = activeCategoriesCount;
+
+  // 3. Compute metric scores
+  const categoryScore = calculateConceptCategoriesScore(activeCategoriesCount);
+
+  const orderScore = calculateLayerOrderScore(state.phases);
+  result.layerOrderScore = orderScore;
+
+  const totalWt = result.wtConstraint + result.wtRestraint + result.wtCondition;
+  const currConstraint = totalWt > 0 ? (result.wtConstraint / totalWt * 100) : 0;
+  const currRestraint = totalWt > 0 ? (result.wtRestraint / totalWt * 100) : 0;
+  const currCondition = totalWt > 0 ? (result.wtCondition / totalWt * 100) : 0;
+
+  const balanceScore = calculateLayerBalanceScore(
+    currConstraint, currRestraint, currCondition,
+    ideal.pctConstraint, ideal.pctRestraint, ideal.pctCondition,
+    orderScore
+  );
+  result.layerBalance = balanceScore;
+
+  const redundancyScore = calculateRedundancyControl(result.posTokens);
+  result.redundancyControl = redundancyScore;
+
+  const infoEfficiency = calculateInformationEfficiency(result.posTokens, activeCategoriesCount);
+  result.informationEfficiency = infoEfficiency;
+
+  const diversityScore = calculateConceptDiversity(categoryMap, result.posTokens.length);
+  result.conceptDiversity = diversityScore;
+
+  // 4. Calculate semantic density score
+  const scoreX = (categoryScore * 0.30) +
+    (balanceScore * 0.25) +
+    (infoEfficiency * 0.20) +
+    (diversityScore * 0.15) +
+    (redundancyScore * 0.10);
+
+  result.densityScore = Math.max(0, Math.min(100, Math.round(scoreX)));
+}
+
+function computeSemanticOptimizationTips(result) {
+  const tips = [];
+  if (!result || result.totalTokens === 0) return tips;
+
+  const ideal = result.idealValues || { pctConstraint: 40, pctRestraint: 30, pctCondition: 30, densityScore: 70 };
+  const totalWt = result.wtConstraint + result.wtRestraint + result.wtCondition;
+  const currConstraint = totalWt > 0 ? (result.wtConstraint / totalWt * 100) : 0;
+  const currRestraint = totalWt > 0 ? (result.wtRestraint / totalWt * 100) : 0;
+  const currCondition = totalWt > 0 ? (result.wtCondition / totalWt * 100) : 0;
+
+  // 1. Concept categories count tips
+  const categoryCount = result.conceptCategories || 0;
+  if (categoryCount < 6) {
+    tips.push(`<strong>コンセプトカテゴリ数が不足しています（現在 ${categoryCount}種類 / 理想 6〜9種類）。</strong>Subject, Style, Medium, Environment, Luminance などの異なる次元のトークンを追加して、プロンプトの多角的な密度を高めてください。`);
+  } else if (categoryCount > 9) {
+    tips.push(`<strong>コンセプトカテゴリが多すぎます（現在 ${categoryCount}種類 / 理想 6〜9種類）。</strong>プロンプトの焦点がぼやける可能性があります。不要な修飾トークンを削減するか、主要なカテゴリに絞り込んでください。`);
+  } else {
+    tips.push(`✓ <strong>コンセプトカテゴリ数は適切です（現在 ${categoryCount}種類）。</strong>現在の多様な意味次元のバランスを維持してください。`);
+  }
+
+  // 2. Layer Balance tips
+  const conDiff = currConstraint - ideal.pctConstraint;
+  const resDiff = currRestraint - ideal.pctRestraint;
+  const condDiff = currCondition - ideal.pctCondition;
+
+  if (Math.abs(conDiff) > 10) {
+    if (conDiff > 0) {
+      tips.push(`<strong>Constraint（構造・拘束）比率が理想より高いです（現在 ${Math.round(currConstraint)}% / 理想 ${ideal.pctConstraint}%）。</strong>詳細・解剖学等のトークンの重みを下げるか、環境やスタイル記述を追加してください。`);
+    } else {
+      tips.push(`<strong>Constraint（構造・拘束）比率が理想より低いです（現在 ${Math.round(currConstraint)}% / 理想 ${ideal.pctConstraint}%）。</strong>「sharp focus」「highly detailed」等の輪郭・構造を確定させるトークンを追加してください。`);
+    }
+  }
+
+  if (Math.abs(resDiff) > 10) {
+    if (resDiff > 0) {
+      tips.push(`<strong>Restraint（抑制・減衰）比率が理想より高いです（現在 ${Math.round(currRestraint)}% / 理想 ${ideal.pctRestraint}%）。</strong>「soft」「muted」等の減衰トークンが過剰です。一部を削除するか重みを下げてください。`);
+    } else {
+      tips.push(`<strong>Restraint（抑制・減衰）比率が理想より低いです（現在 ${Math.round(currRestraint)}% / 理想 ${ideal.pctRestraint}%）。</strong>「subtle」「gentle」等のバランス調整・抑制トークンを追加して、過剰な拡散の飽和を防いでください。`);
+    }
+  }
+
+  if (Math.abs(condDiff) > 10) {
+    if (condDiff > 0) {
+      tips.push(`<strong>Condition（相互作用・光・環境）比率が理想より高いです（現在 ${Math.round(currCondition)}% / 理想 ${ideal.pctCondition}%）。</strong>ライティングや環境光の記述が多すぎます。主題（Subject）のディテール記述を補強してください。`);
+    } else {
+      tips.push(`<strong>Condition（相互作用・光・環境）比率が理想より低いです（現在 ${Math.round(currCondition)}% / 理想 ${ideal.pctCondition}%）。</strong>「cinematic lighting」「volumetric fog」等の雰囲気・環境光の記述を追加してください。`);
+    }
+  }
+
+  // 3. Layer Order tips
+  const orderScore = result.layerOrderScore || 0;
+  if (orderScore < 0.8) {
+    tips.push(`<strong>フェーズの順序構造（LAYER ORDER）が最適ではありません。</strong>低周波構造（主題、構図）→中周波構造（衣装、媒体）→高周波ディテール（ライティング、環境）の順にフェーズを並べ替えることで、拡散の描画安定性が向上します。`);
+  } else {
+    tips.push(`✓ <strong>フェーズの順序構造（LAYER ORDER）は最適です。</strong>低周波から高周波への自然な描画流れが維持されています。`);
+  }
+
+  // 4. Redundancy tips
+  if (result.redundancyControl < 70) {
+    tips.push(`<strong>プロンプト内に重複または類似したトークンが多く検出されました（Redundancy Control: ${result.redundancyControl}/100）。</strong>過度な同義語の羅列はノイズになります。重複する意味のトークンを統合してください。`);
+  }
+
+  // 5. Information Efficiency tips
+  if (result.informationEfficiency < 40) {
+    tips.push(`<strong>トークン情報効率が低いです（Information Efficiency: ${Math.round(result.informationEfficiency)}/100）。</strong>総トークン数に対して固有の意味カテゴリが少ないため、無駄な記述が多い可能性があります。表現を簡潔にまとめてください。`);
+  }
+
+  return tips;
 }
 
 /**
@@ -4494,6 +4781,9 @@ function runSemanticAnalysis() {
  */
 function renderAnalysisPanel(resultOverride = null) {
   const result = resultOverride || lastSemanticResult || runSemanticAnalysis();
+
+  // Enrich metrics
+  enrichSemanticDensityMetrics(result);
 
   // Show/Hide LLM explanation container
   const llmContainer = document.getElementById("da-llm-explanation");
@@ -4511,30 +4801,125 @@ function renderAnalysisPanel(resultOverride = null) {
   document.getElementById('da-empty-state').classList.toggle('hidden', !isEmpty);
   document.getElementById('da-content').style.display = isEmpty ? 'none' : '';
 
+  // Update Semantic Density Meter DOM
+  const sdmMeter = document.getElementById('da-semantic-density-meter');
+  if (sdmMeter) {
+    if (isEmpty) {
+      sdmMeter.style.display = 'none';
+    } else {
+      sdmMeter.style.display = '';
+
+      // Score
+      const score = result.densityScore || 0;
+      const scoreValueEl = document.getElementById('sdm-score-value');
+      if (scoreValueEl) scoreValueEl.textContent = score;
+
+      // Circular gauge
+      const circle = document.getElementById('sdm-gauge-circle');
+      if (circle) {
+        const circumference = 301.6;
+        const offset = circumference - (circumference * (score / 100));
+        circle.style.strokeDashoffset = offset;
+      }
+
+      // Concept Categories count
+      const activeCatsCount = result.conceptCategories || 0;
+      const countEl = document.getElementById('sdm-categories-count');
+      if (countEl) countEl.textContent = `${activeCatsCount} / 12 (Ideal: 6~9)`;
+
+      // Category chips
+      const chipsEl = document.getElementById('sdm-categories-chips');
+      if (chipsEl && result.categoryMap) {
+        chipsEl.innerHTML = CONCEPT_CATEGORIES.map(cat => {
+          const count = result.categoryMap[cat] ? result.categoryMap[cat].length : 0;
+          const isActive = count > 0;
+          if (isActive) {
+            const badgeClass = 'px-2 py-0.5 text-[9px] rounded bg-indigo-950 text-indigo-300 border border-indigo-500/30 cursor-pointer hover:bg-indigo-900/50 transition';
+            return `<button class="${badgeClass}" onclick="window.openCategoryDetailModal('${cat}')">${cat} (${count})</button>`;
+          } else {
+            const badgeClass = 'px-2 py-0.5 text-[9px] rounded bg-slate-950/40 text-slate-600 border border-slate-900/60 opacity-50 cursor-default';
+            return `<span class="${badgeClass}">${cat}</span>`;
+          }
+        }).join('');
+      }
+
+      // Layer Balance
+      const totalWt = result.wtConstraint + result.wtRestraint + result.wtCondition;
+      const currConstraint = totalWt > 0 ? Math.round((result.wtConstraint / totalWt) * 100) : 0;
+      const currRestraint = totalWt > 0 ? Math.round((result.wtRestraint / totalWt) * 100) : 0;
+      const currCondition = totalWt > 0 ? Math.round((result.wtCondition / totalWt) * 100) : 0;
+
+      const ideal = result.idealValues || { pctConstraint: 40, pctRestraint: 30, pctCondition: 30, densityScore: 70 };
+
+      // Current texts
+      const curConEl = document.getElementById('sdm-curr-constraint');
+      if (curConEl) curConEl.textContent = `${currConstraint}%`;
+      const curResEl = document.getElementById('sdm-curr-restraint');
+      if (curResEl) curResEl.textContent = `${currRestraint}%`;
+      const curCondEl = document.getElementById('sdm-curr-condition');
+      if (curCondEl) curCondEl.textContent = `${currCondition}%`;
+
+      // Ideal texts
+      const idConEl = document.getElementById('sdm-ideal-constraint');
+      if (idConEl) idConEl.textContent = `/ ${ideal.pctConstraint}%`;
+      const idResEl = document.getElementById('sdm-ideal-restraint');
+      if (idResEl) idResEl.textContent = `/ ${ideal.pctRestraint}%`;
+      const idCondEl = document.getElementById('sdm-ideal-condition');
+      if (idCondEl) idCondEl.textContent = `/ ${ideal.pctCondition}%`;
+
+      // Bar fills
+      const barCon = document.getElementById('sdm-bar-constraint');
+      if (barCon) barCon.style.width = `${currConstraint}%`;
+      const barRes = document.getElementById('sdm-bar-restraint');
+      if (barRes) barRes.style.width = `${currRestraint}%`;
+      const barCond = document.getElementById('sdm-bar-condition');
+      if (barCond) barCond.style.width = `${currCondition}%`;
+
+      // Balance text
+      const balanceTextEl = document.getElementById('sdm-balance-text');
+      if (balanceTextEl) {
+        balanceTextEl.textContent = `Score: ${result.layerBalance || 0} / 100`;
+      }
+
+      // Total density gap
+      const totalDensityVal = Math.round(totalWt * 10);
+      const idealDensityVal = ideal.densityScore || 70;
+
+      const densTextEl = document.getElementById('sdm-density-text');
+      if (densTextEl) densTextEl.textContent = `${totalDensityVal} / ${idealDensityVal}`;
+
+      const idealBar = document.getElementById('sdm-density-ideal-bar');
+      if (idealBar) idealBar.style.width = `${Math.min(100, idealDensityVal)}%`;
+
+      const currBar = document.getElementById('sdm-density-current-bar');
+      if (currBar) currBar.style.width = `${Math.min(100, totalDensityVal)}%`;
+    }
+  }
+
   if (isEmpty) return;
 
   // ---- Update topology counts & bars ----
   const maxWt = Math.max(result.wtConstraint, result.wtRestraint, result.wtCondition, result.wtNeg, 1);
 
   document.getElementById('da-count-constraint').textContent = result.classified.constraint.length;
-  document.getElementById('da-count-restraint').textContent  = result.classified.restraint.length;
-  document.getElementById('da-count-condition').textContent  = result.classified.condition.length;
+  document.getElementById('da-count-restraint').textContent = result.classified.restraint.length;
+  document.getElementById('da-count-condition').textContent = result.classified.condition.length;
 
   document.getElementById('da-wt-constraint').textContent = result.wtConstraint.toFixed(2);
-  document.getElementById('da-wt-restraint').textContent  = result.wtRestraint.toFixed(2);
-  document.getElementById('da-wt-condition').textContent  = result.wtCondition.toFixed(2);
-  document.getElementById('da-wt-neg').textContent        = result.wtNeg.toFixed(2);
+  document.getElementById('da-wt-restraint').textContent = result.wtRestraint.toFixed(2);
+  document.getElementById('da-wt-condition').textContent = result.wtCondition.toFixed(2);
+  document.getElementById('da-wt-neg').textContent = result.wtNeg.toFixed(2);
 
   document.getElementById('da-bar-constraint').style.width = `${(result.wtConstraint / maxWt * 100).toFixed(1)}%`;
-  document.getElementById('da-bar-restraint').style.width  = `${(result.wtRestraint  / maxWt * 100).toFixed(1)}%`;
-  document.getElementById('da-bar-condition').style.width  = `${(result.wtCondition  / maxWt * 100).toFixed(1)}%`;
-  document.getElementById('da-bar-neg').style.width        = `${(result.wtNeg        / maxWt * 100).toFixed(1)}%`;
+  document.getElementById('da-bar-restraint').style.width = `${(result.wtRestraint / maxWt * 100).toFixed(1)}%`;
+  document.getElementById('da-bar-condition').style.width = `${(result.wtCondition / maxWt * 100).toFixed(1)}%`;
+  document.getElementById('da-bar-neg').style.width = `${(result.wtNeg / maxWt * 100).toFixed(1)}%`;
 
   // ---- Dominance split meter ----
-  document.getElementById('da-split-left').style.width  = `${result.pctDiffusion}%`;
+  document.getElementById('da-split-left').style.width = `${result.pctDiffusion}%`;
   document.getElementById('da-split-right').style.width = `${result.pctStructure}%`;
   document.getElementById('da-pct-diffusion').textContent = `${result.pctDiffusion}%`;
-  document.getElementById('da-pct-structure').textContent  = `${result.pctStructure}%`;
+  document.getElementById('da-pct-structure').textContent = `${result.pctStructure}%`;
 
   // Dominance description
   let domDesc = '';
@@ -4552,14 +4937,14 @@ function renderAnalysisPanel(resultOverride = null) {
   // ---- Overall banner ----
   const allStatuses = Object.values(result.assessments).filter(a => a.detected).map(a => a.status);
   const hasCritical = allStatuses.includes('critical');
-  const hasWarning  = allStatuses.includes('warning');
-  const hasStable   = allStatuses.includes('stable');
+  const hasWarning = allStatuses.includes('warning');
+  const hasStable = allStatuses.includes('stable');
   const noneDetected = allStatuses.length === 0;
 
   const banner = document.getElementById('da-overall-banner');
-  const bannerIcon  = document.getElementById('da-banner-icon');
+  const bannerIcon = document.getElementById('da-banner-icon');
   const bannerTitle = document.getElementById('da-banner-title');
-  const bannerDesc  = document.getElementById('da-banner-desc');
+  const bannerDesc = document.getElementById('da-banner-desc');
 
   // Remove all banner classes first
   banner.className = 'overall-status-banner';
@@ -4586,10 +4971,20 @@ function renderAnalysisPanel(resultOverride = null) {
   }
 
   // ---- Assessment cards ----
-  const assessIds = ['style', 'grisaille', 'wetonwet', 'costume', 'background'];
+  // ① grisaille+wetonwet → mid-frequency 統合、③ 新規4層を追加
+  const assessIds = [
+    'style',
+    'mid-frequency',
+    'costume',
+    'background',
+    'composition',
+    'subject_core',
+    'optics_luminance',
+    'atmosphere_diffusion'
+  ];
   assessIds.forEach(id => {
     const a = result.assessments[id];
-    applyAssessmentCard(id, a);
+    if (a) applyAssessmentCard(id, a);
   });
 
   // ---- Token topology detail list ----
@@ -4598,8 +4993,8 @@ function renderAnalysisPanel(resultOverride = null) {
 
   const allClassified = [
     ...result.classified.constraint.map(t => ({ tok: t, type: 'constraint' })),
-    ...result.classified.restraint.map(t  => ({ tok: t, type: 'restraint'  })),
-    ...result.classified.condition.map(t  => ({ tok: t, type: 'condition'  }))
+    ...result.classified.restraint.map(t => ({ tok: t, type: 'restraint' })),
+    ...result.classified.condition.map(t => ({ tok: t, type: 'condition' }))
   ];
 
   // Deduplicate by text+type to avoid repeats
@@ -4632,16 +5027,16 @@ function renderAnalysisPanel(resultOverride = null) {
  * Apply results to a single assessment card in the DOM.
  */
 function applyAssessmentCard(id, assessment) {
-  const card    = document.getElementById(`assess-${id}`);
-  const iconEl  = document.getElementById(`assess-${id}-icon`);
+  const card = document.getElementById(`assess-${id}`);
+  const iconEl = document.getElementById(`assess-${id}-icon`);
   const verdict = document.getElementById(`assess-${id}-verdict`);
-  const badge   = document.getElementById(`assess-${id}-badge`);
+  const badge = document.getElementById(`assess-${id}-badge`);
 
   if (!card) return;
 
   // Reset classes
-  card.className    = 'assessment-card';
-  iconEl.className  = 'assessment-icon';
+  card.className = 'assessment-card';
+  iconEl.className = 'assessment-icon';
   verdict.className = 'assessment-verdict';
 
   const s = assessment.status;
@@ -4661,7 +5056,7 @@ function applyAssessmentCard(id, assessment) {
   const scoreBar = `<span class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-800/60 border border-slate-700/50">${assessment.stabilityScore}/100</span>`;
 
   let verdictHtml = `安定性スコア: ${scoreBar}<br>`;
-  verdictHtml += `検出キーワード: <strong>${assessment.matchedKws.slice(0, 4).join(', ')}${assessment.matchedKws.length > 4 ? ` 他${assessment.matchedKws.length-4}件` : ''}</strong>。`;
+  verdictHtml += `検出キーワード: <strong>${assessment.matchedKws.slice(0, 4).join(', ')}${assessment.matchedKws.length > 4 ? ` 他${assessment.matchedKws.length - 4}件` : ''}</strong>。`;
 
   if (assessment.matchedReinf.length > 0) {
     verdictHtml += ` 強化トークン <strong>${assessment.matchedReinf.length}件</strong> が安定性を補強しています。`;
@@ -4670,7 +5065,7 @@ function applyAssessmentCard(id, assessment) {
   }
 
   if (assessment.matchedDanger.length > 0) {
-    verdictHtml += ` <strong>⚠ ネガティブ側で危険な抑制 ${assessment.matchedDanger.length}件</strong>（${assessment.matchedDanger.slice(0,2).join(', ')}）が検出されました。この記述はスタイル層を意図せず抑制する可能性があります。`;
+    verdictHtml += ` <strong>⚠ ネガティブ側で危険な抑制 ${assessment.matchedDanger.length}件</strong>（${assessment.matchedDanger.slice(0, 2).join(', ')}）が検出されました。この記述はスタイル層を意図せず抑制する可能性があります。`;
   }
 
   if (s === 'stable') {
@@ -4725,7 +5120,7 @@ function initAnalysisPanel() {
   if (btnToggleKey) {
     btnToggleKey.addEventListener("click", () => {
       const input = document.getElementById("input-gemini-api-key");
-      const icon  = document.getElementById("icon-eye-gemini");
+      const icon = document.getElementById("icon-eye-gemini");
       if (input.type === "password") {
         input.type = "text";
         icon.classList.replace("fa-eye", "fa-eye-slash");
@@ -4737,7 +5132,7 @@ function initAnalysisPanel() {
   }
 
   // Collapsible toggle
-  const toggleBtn  = document.getElementById('da-topo-toggle');
+  const toggleBtn = document.getElementById('da-topo-toggle');
   const toggleBody = document.getElementById('da-topo-detail-body');
   if (toggleBtn && toggleBody) {
     toggleBtn.addEventListener('click', () => {
@@ -4770,7 +5165,7 @@ function initAnalysisPanel() {
 
       const icon = document.getElementById("icon-run-analysis");
       const text = document.getElementById("text-run-analysis");
-      
+
       const originalIconClass = icon.className;
       icon.className = "fa-solid fa-circle-notch fa-spin";
       text.textContent = "Analyzing...";
@@ -4786,7 +5181,7 @@ function initAnalysisPanel() {
         geminiResult.negTokens = localResult.negTokens;
         geminiResult.totalTokens = localResult.totalTokens;
         lastSemanticResult = geminiResult;
-        
+
         renderAnalysisPanel(lastSemanticResult);
         // --- Requirement 7: show which engine was used ---
         setAnalysisSourceBadge('gemini', geminiResult._usedModel);
@@ -4808,7 +5203,7 @@ function initAnalysisPanel() {
 
   // ---- NEW: Target Steps slider in Analysis panel ----
   const daStepsSlider = document.getElementById('da-input-steps');
-  const daStepsLabel  = document.getElementById('da-label-steps');
+  const daStepsLabel = document.getElementById('da-label-steps');
   if (daStepsSlider && daStepsLabel) {
     daStepsSlider.addEventListener('input', () => {
       daStepsLabel.textContent = daStepsSlider.value;
@@ -4823,7 +5218,7 @@ function initAnalysisPanel() {
 
 // ---- Hook into existing updateOutput ----
 const _origUpdateOutputForDA = updateOutput;
-updateOutput = function() {
+updateOutput = function () {
   _origUpdateOutputForDA();
   // We no longer auto-render the Semantic Dominance panel here,
   // as it now requires a manual Re-Analyze click.
@@ -4905,11 +5300,11 @@ function computeParamRecommendation(steps, result) {
   // Lower steps → need slightly higher CFG to converge
   // Higher steps → can afford lower CFG
   let baseCfg = 7.0;
-  if (s <= 18)       baseCfg = 8.5;
-  else if (s <= 22)  baseCfg = 7.5;
-  else if (s <= 28)  baseCfg = 7.0;
-  else if (s <= 35)  baseCfg = 6.5;
-  else               baseCfg = 6.0;
+  if (s <= 18) baseCfg = 8.5;
+  else if (s <= 22) baseCfg = 7.5;
+  else if (s <= 28) baseCfg = 7.0;
+  else if (s <= 35) baseCfg = 6.5;
+  else baseCfg = 6.0;
 
   // ---- Prompt complexity adjustments ----
   const totalPosTokens = result.posTokens.length;
@@ -4979,7 +5374,7 @@ function computeParamRecommendation(steps, result) {
     } else {
       tips.push(`<strong>グリザイユ・水彩スタイルの「条件トークン」を1〜2件強化</strong>（weight 1.04→1.06程度）することで、スタイルの拡散支配力を向上させCFGを上げやすくなります。`);
     }
-    tips.push(`<strong>Sampling Stepsを2〜3ステップ下げる</strong>（現在${s}→${Math.max(15, s-2)}程度）ことで、同CFG値でより鮮明な輪郭と強い発色が得られ、実質的にCFG感度を上げた効果を得られます。`);
+    tips.push(`<strong>Sampling Stepsを2〜3ステップ下げる</strong>（現在${s}→${Math.max(15, s - 2)}程度）ことで、同CFG値でより鮮明な輪郭と強い発色が得られ、実質的にCFG感度を上げた効果を得られます。`);
     if (totalNegTokens > 12) {
       tips.push(`<strong>ネガティブプロンプトのトークン数が多い</strong>（${totalNegTokens}件）。意味的に重複する抑制語（例: 複数の「over-mixing」系）を統合・削除して5〜8件程度に絞るとCFGの整数化に近づきます。`);
     }
@@ -4995,7 +5390,7 @@ function computeParamRecommendation(steps, result) {
     } else {
       tips.push(`<strong>各フェーズの先頭トークン（最も拡散に影響する）の重みを0.02下げ</strong>てみてください。プロンプト全体の拡散強度が緩み、推奨CFGが整数値に近づきます。`);
     }
-    tips.push(`<strong>Sampling Stepsを2〜3増やす</strong>（現在${s}→${Math.min(45, s+2)}程度）ことで、拡散プロセスがより細かく分解され同じプロンプト強度でも低CFGで安定した出力が得られます。`);
+    tips.push(`<strong>Sampling Stepsを2〜3増やす</strong>（現在${s}→${Math.min(45, s + 2)}程度）ことで、拡散プロセスがより細かく分解され同じプロンプト強度でも低CFGで安定した出力が得られます。`);
     if (totalPosTokens > 50) {
       tips.push(`<strong>ポジティブトークン数が多い</strong>（${totalPosTokens}件）。意味的に近接するトークンを統合・削除して35〜45件程度に絞ることで、CFGの整数値への調整が容易になります。`);
     }
@@ -5020,28 +5415,33 @@ function computeParamRecommendation(steps, result) {
 function renderParamRecommender(stepsOverride) {
   // Read steps from the analysis-panel slider (or override)
   const stepsEl = document.getElementById('da-input-steps');
-  const steps   = stepsOverride !== undefined ? parseInt(stepsOverride, 10)
-                                              : (stepsEl ? parseInt(stepsEl.value, 10) : 20);
+  const steps = stepsOverride !== undefined ? parseInt(stepsOverride, 10)
+    : (stepsEl ? parseInt(stepsEl.value, 10) : 20);
 
   // Run current semantic analysis to feed into the engine (always use local result for recommendation)
   const result = runSemanticAnalysis();
 
   // If no tokens exist, show a minimal placeholder and bail
-  const cfgEl      = document.getElementById('da-rec-cfg');
-  const cfgNoteEl  = document.getElementById('da-rec-cfg-note');
+  const cfgEl = document.getElementById('da-rec-cfg');
+  const cfgNoteEl = document.getElementById('da-rec-cfg-note');
   const samplersEl = document.getElementById('da-rec-samplers');
-  const tipsEl     = document.getElementById('da-rec-tips');
-  const dirEl      = document.getElementById('da-tips-direction');
+  const tipsEl = document.getElementById('da-rec-tips');
+  const dirEl = document.getElementById('da-tips-direction');
 
   if (!cfgEl) return;
 
   if (result.totalTokens === 0) {
-    cfgEl.textContent         = '—';
-    cfgEl.className           = 'param-rec-cfg-value';
-    cfgNoteEl.textContent     = 'トークンを追加すると解析が開始されます';
-    samplersEl.innerHTML      = '<span class="param-rec-tips-empty">—</span>';
-    tipsEl.innerHTML          = '<p class="param-rec-tips-empty">プロンプトを作成後に Tips が表示されます。</p>';
+    cfgEl.textContent = '—';
+    cfgEl.className = 'param-rec-cfg-value';
+    cfgNoteEl.textContent = 'トークンを追加すると解析が開始されます';
+    samplersEl.innerHTML = '<span class="param-rec-tips-empty">—</span>';
+    tipsEl.innerHTML = '<p class="param-rec-tips-empty">プロンプトを作成後に Tips が表示されます。</p>';
     if (dirEl) dirEl.textContent = '';
+
+    const semanticTipsEl = document.getElementById('da-semantic-tips');
+    if (semanticTipsEl) {
+      semanticTipsEl.innerHTML = '<p class="param-rec-tips-empty">プロンプトを作成後に Tips が表示されます。</p>';
+    }
     return;
   }
 
@@ -5050,7 +5450,7 @@ function renderParamRecommender(stepsOverride) {
   // ---- CFG Value display ----
   cfgEl.textContent = rec.cfg.toFixed(1);
   if (rec.direction === 'integer') {
-    cfgEl.className       = 'param-rec-cfg-value is-integer';
+    cfgEl.className = 'param-rec-cfg-value is-integer';
     cfgNoteEl.textContent = `✓ 既に整数値 (${rec.nearestInt}) に到達しています！`;
   } else {
     cfgEl.className = 'param-rec-cfg-value';
@@ -5084,13 +5484,24 @@ function renderParamRecommender(stepsOverride) {
     const cls = rec.direction === 'up' ? 'tip-up' : rec.direction === 'down' ? 'tip-down' : '';
     return `<li class="${cls}" style="animation-delay:${i * 0.05}s">${tip}</li>`;
   }).join('');
+
+  // ---- Semantic Optimization Tips ----
+  const semanticTipsEl = document.getElementById('da-semantic-tips');
+  if (semanticTipsEl) {
+    // Ensure metrics are populated
+    enrichSemanticDensityMetrics(result);
+    const semanticTips = computeSemanticOptimizationTips(result);
+    semanticTipsEl.innerHTML = semanticTips.map((tip, i) => {
+      return `<li class="tip-semantic" style="animation-delay:${i * 0.05}s">${tip}</li>`;
+    }).join('');
+  }
 }
 
 // ============================================================
 //  COMMIT DETAIL OVERLAY CONTROLLERS & ACTIONS
 // ============================================================
 
-window.openCommitDetailOverlay = function(conceptId, commitId) {
+window.openCommitDetailOverlay = function (conceptId, commitId) {
   const concept = state.concepts.find(c => c.id === conceptId);
   if (!concept) return;
   const commit = (concept.commits || []).find(c => c.id === commitId);
@@ -5140,7 +5551,7 @@ window.openCommitDetailOverlay = function(conceptId, commitId) {
   }
 };
 
-window.closeCommitDetailOverlay = function() {
+window.closeCommitDetailOverlay = function () {
   const modal = document.getElementById('commit-detail-modal');
   if (modal) {
     modal.classList.remove('open');
@@ -5148,13 +5559,13 @@ window.closeCommitDetailOverlay = function() {
   }
 };
 
-window.handleCommitDetailOverlayClick = function(e) {
+window.handleCommitDetailOverlayClick = function (e) {
   if (e.target.id === 'commit-detail-modal') {
     window.closeCommitDetailOverlay();
   }
 };
 
-window.selectCommitDetailPhase = function(phaseId) {
+window.selectCommitDetailPhase = function (phaseId) {
   const stateObj = window._commitDetailOverlayState;
   if (!stateObj) return;
 
@@ -5175,7 +5586,7 @@ window.selectCommitDetailPhase = function(phaseId) {
   window.renderCommitDetailExpandedContents();
 };
 
-window.renderCommitDetailExpandedContents = function() {
+window.renderCommitDetailExpandedContents = function () {
   const stateObj = window._commitDetailOverlayState;
   if (!stateObj) return;
 
@@ -5247,7 +5658,7 @@ window.renderCommitDetailExpandedContents = function() {
       const isCore = !!tok.isCore;
       const row = document.createElement('div');
       row.className = 'overlay-token-row flex items-center justify-between p-2.5 rounded-lg text-xs border border-slate-700/60 bg-slate-800/10 mb-1';
-      
+
       const starHtml = !phase.isNegative ? `
         <span class="text-xs mr-1">
           <i class="fa-solid fa-star ${isCore ? 'text-amber-400' : 'text-slate-600'}"></i>
@@ -5271,7 +5682,7 @@ window.renderCommitDetailExpandedContents = function() {
   }
 };
 
-window.archiveCommitFromOverlay = function(conceptId, commitId) {
+window.archiveCommitFromOverlay = function (conceptId, commitId) {
   const concept = state.concepts.find(c => c.id === conceptId);
   if (!concept) return;
   const commit = (concept.commits || []).find(c => c.id === commitId);
@@ -5317,4 +5728,74 @@ document.addEventListener("DOMContentLoaded", () => {
     console.log("[GeminiAnalyzer] btn-run-intelligence-analysis listener confirmed in app.js.");
   }
 });
+
+
+// ============================================================
+//  PIA CONCEPT CATEGORIES DETAIL MODAL
+// ============================================================
+window.openCategoryDetailModal = function (category) {
+  const categoryMap = (lastSemanticResult && lastSemanticResult.categoryMap) || 
+                      (window._piaLastResult && window._piaLastResult.categoryMap) || 
+                      (runSemanticAnalysis() && runSemanticAnalysis().categoryMap) || 
+                      {};
+  const tokens = categoryMap[category] || [];
+  
+  const titleEl = document.getElementById("category-detail-title");
+  if (titleEl) {
+    titleEl.textContent = `${category} - Token List (${tokens.length})`;
+  }
+  
+  const bodyEl = document.getElementById("category-detail-body");
+  if (bodyEl) {
+    if (tokens.length === 0) {
+      bodyEl.innerHTML = `<p class="text-xs text-slate-500 text-center py-4">このカテゴリに分類されているトークンはありません。</p>`;
+    } else {
+      const escapeHtml = (str) => {
+        if (!str) return '';
+        return str.replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;')
+                  .replace(/"/g, '&quot;')
+                  .replace(/'/g, '&#039;');
+      };
+      
+      const tokenHtml = tokens.map(tok => {
+        const isCoreBadge = tok.isCore ? `<span class="token-core-badge ml-1.5"><i class="fa-solid fa-star text-[8px] text-yellow-400"></i> CORE</span>` : '';
+        return `
+          <div class="flex items-center justify-between bg-slate-950/40 border border-slate-800/80 rounded-xl p-3 shadow-inner mb-2 last:mb-0">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="text-sm font-semibold text-slate-100 truncate">${escapeHtml(tok.text)}</span>
+              ${isCoreBadge}
+            </div>
+            <span class="shrink-0 font-mono text-xs font-bold px-2 py-0.5 rounded bg-indigo-950/80 text-indigo-400 border border-indigo-500/30">
+              ${tok.weight.toFixed(2)}x
+            </span>
+          </div>
+        `;
+      }).join('');
+      bodyEl.innerHTML = `<div class="max-h-60 overflow-y-auto pr-1">${tokenHtml}</div>`;
+    }
+  }
+  
+  const modal = document.getElementById("category-detail-modal");
+  if (modal) {
+    modal.classList.add("open");
+    document.body.style.overflow = "hidden";
+  }
+};
+
+window.closeCategoryDetailModal = function () {
+  const modal = document.getElementById("category-detail-modal");
+  if (modal) {
+    modal.classList.remove("open");
+    document.body.style.overflow = "";
+  }
+};
+
+window.handleCategoryDetailModalOverlayClick = function (e) {
+  if (e.target.id === "category-detail-modal") {
+    window.closeCategoryDetailModal();
+  }
+};
+
 

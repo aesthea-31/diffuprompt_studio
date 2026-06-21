@@ -127,10 +127,22 @@ Respond ONLY in valid JSON format matching exactly this structure:
   "causalExplanation": "Explain the causal relationship between positive and negative prompts and Target Sampling Steps: ${steps}, and detect risks of prompt collapse...",
   "assessments": {
     "style": { "detected": true, "matchedKws": ["keyword"], "matchedReinf": ["keyword"], "matchedDanger": [], "stabilityScore": 85, "status": "stable" },
-    "grisaille": { "detected": false, "matchedKws": [], "matchedReinf": [], "matchedDanger": [], "stabilityScore": 0, "status": "inactive" },
-    "wetonwet": { "detected": false, "matchedKws": [], "matchedReinf": [], "matchedDanger": [], "stabilityScore": 0, "status": "inactive" },
+    "mid-frequency": { "detected": false, "matchedKws": [], "matchedReinf": [], "matchedDanger": [], "stabilityScore": 0, "status": "inactive" },
     "costume": { "detected": false, "matchedKws": [], "matchedReinf": [], "matchedDanger": [], "stabilityScore": 0, "status": "inactive" },
-    "background": { "detected": false, "matchedKws": [], "matchedReinf": [], "matchedDanger": [], "stabilityScore": 0, "status": "inactive" }
+    "background": { "detected": false, "matchedKws": [], "matchedReinf": [], "matchedDanger": [], "stabilityScore": 0, "status": "inactive" },
+    "composition": { "detected": false, "matchedKws": [], "matchedReinf": [], "matchedDanger": [], "stabilityScore": 0, "status": "inactive" },
+    "subject_core": { "detected": false, "matchedKws": [], "matchedReinf": [], "matchedDanger": [], "stabilityScore": 0, "status": "inactive" },
+    "optics_luminance": { "detected": false, "matchedKws": [], "matchedReinf": [], "matchedDanger": [], "stabilityScore": 0, "status": "inactive" },
+    "atmosphere_diffusion": { "detected": false, "matchedKws": [], "matchedReinf": [], "matchedDanger": [], "stabilityScore": 0, "status": "inactive" }
+  },
+  "idealValues": {
+    "pctConstraint": 40,
+    "pctRestraint": 30,
+    "pctCondition": 30,
+    "densityScore": 70
+  },
+  "tokenCategories": {
+    "token text": "Subject"
   }
 }
 Definitions:
@@ -139,9 +151,11 @@ Definitions:
 - Condition: interaction/lighting/field terms (e.g. lighting, bloom, cinematic)
 - wtNeg is calculated as sum(2.0 - weight) for negative tokens.
 - pctDiffusion + pctStructure must equal 100.
-- assessments keys must be exactly: style, grisaille, wetonwet, costume, background.
+- assessments keys must be exactly: style, mid-frequency, costume, background, composition, subject_core, optics_luminance, atmosphere_diffusion.
   - status must be one of: 'stable', 'warning', 'critical', 'inactive'.
   - stabilityScore from 0 to 100.
+- idealValues: Represents the ideal percentages of Constraint, Restraint, Condition, and ideal densityScore for this prompt, determined by the token content and the sequence structure/order of phases (LAYER ORDER).
+- tokenCategories: A dictionary mapping every active token in the positive prompt to exactly one of: Subject, Character, Action, Material, Style, Medium, Environment, Luminance, Atmosphere, Color, Composition, Emotion.
 Positive Prompt: [ ${posText} ]
 Negative Prompt: [ ${negText} ]
 Target Sampling Steps: ${steps}`;
