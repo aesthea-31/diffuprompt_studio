@@ -845,6 +845,8 @@ function setupGlobalEvents() {
   document.getElementById("btn-clear-all").addEventListener("click", () => {
     if (confirm("Are you sure you want to clear all phases and tokens?")) {
       state.phases = [];
+      state.activeConcept = null;
+      updateCommitButton();
       showToast("Workspace cleared.");
       renderApp();
     }

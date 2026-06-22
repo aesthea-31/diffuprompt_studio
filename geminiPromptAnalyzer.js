@@ -276,13 +276,14 @@ Return ONLY valid JSON matching this exact structure:
 }
 
 Analysis Conditions:
-- DANGER POSITIVES: Detect tokens containing explicit negations ("no", "non", "not"), negative prefixes (e.g., "irregularity"), suppressive words (e.g., "suppression"), generation-halting words (e.g., "separation"), and explicitly low/high frequency terms that disrupt the intended style.
-- DANGER NEGATIVES: Detect generation-halting words (e.g., "separation"), structural topology terms (e.g., "structure", "edge"), highly specific concepts (e.g., "bad anatomy"), and words that suppress the "main/auxiliary phases" of the style defined in the positive prompt.
+- DANGER POSITIVES: Detect tokens containing explicit negations, negative prefixes, suppressive words, generation-halting words, and explicitly low/high frequency terms that disrupt the intended style.
+- DANGER NEGATIVES: Detect generation-halting words, structural topology terms, highly specific concepts, and words that suppress the "main/auxiliary phases" of the style defined in the positive prompt.
 
 Rules:
 - Return 3–6 items per array where applicable. Return empty array [] if none found.
 - All string values must be concise (max 120 chars).
 - Do NOT include any text outside the JSON object.
+- CRITICAL: Any token strings returned in the JSON (such as "text", "token", "tokenA", "tokenB") MUST EXACTLY MATCH (one-to-one, case-sensitive) the token strings present in the input "PROMPT STRUCTURE" JSON (compactPhases). Do NOT invent new tokens, summarize, or modify any existing token strings. MUST NOT summarize, truncate, or split any token strings. Even if a token is a long sentence, you must return it exactly as it appears in the input PROMPT STRUCTURE (including spaces and symbols). If no matching token exists for a category, DO NOT invent one; return an empty array `[]` instead.
 - CRITICAL: The explanation fields (reason, description, suggestion, issue) MUST BE OUTPUT STRICTLY IN JAPANESE (必ず日本語で出力すること). Token texts, concept names, and phase names should remain in their original English.`;
 
   // 固定モデル: gemini-2.5-flash-lite
@@ -498,7 +499,7 @@ function renderWorkspaceGeminiResult(result) {
       </div>
     `;
     // Update summary truncated text for the button card
-    optimization.textContent = `${scoreLabel} · ${totalIssues} issue${totalIssues !== 1 ? 's' : ''} · ${result._usedModel || 'gemini-2.5-flash-lite'}`;
+    // optimization.textContent = `${scoreLabel} · ${totalIssues} issue${totalIssues !== 1 ? 's' : ''} · ${result._usedModel || 'gemini-2.5-flash-lite'}`;
   }
 
   // ── Danger Positives ─────────────────────────────────────
