@@ -1,7 +1,7 @@
 /**
  * geminiPromptAnalyzer.js
  * ─────────────────────────────────────────────────────────────
- * Gemini API 連携モジュール（共通 + Workspace 専用）
+ * Gemini API 連携モジュール (独立キーファイル gemini_config.js 対応版)
  *
  * ■ 移管関数（app.js から移動）
  *   - fetchGeminiModelList(apiKey)
@@ -14,17 +14,17 @@
  *   - renderWorkspaceGeminiResult(result)
  *
  * 依存:
- *   - app.js  : window.state, showToast, LS_GEMINI_API_KEY
+ *   - gemini_config.js : APIキーのインポート元
+ *   - app.js  : window.state, showToast
  *   - promptStructureAnalyzer.js : window.buildPromptStructureJSON
  * ─────────────────────────────────────────────────────────────
  */
 
+import { geminiConfig } from "./gemini_config.js";
+
 // ============================================================
 // CONFIG & SHARED STATE
 // ============================================================
-
-/** localStorage キー（app.js の LS_GEMINI_API_KEY と同値） */
-const _GEMINI_LS_KEY = "diffu_gemini_api_key";
 
 /** モデル優先順位（Semantic Dominance 解析も参照） */
 const GEMINI_MODEL_PRIORITY = [
@@ -98,12 +98,9 @@ function validateGeminiApiKeyFormat(key) {
  * @returns {Promise<Object>}  - Gemini が返した分析 JSON
  */
 async function fetchGeminiSemanticAnalysis(localResult, steps) {
-  const apiKey = localStorage.getItem(_GEMINI_LS_KEY) || "";
-  if (!apiKey) {
-    throw new Error("Gemini API Key is not set.");
-  }
-  if (!apiKey.trim()) {
-    throw new Error("APIキーを入力してください");
+  const apiKey = geminiConfig.apiKey ? geminiConfig.apiKey.trim() : "";
+  if (!validateGeminiApiKeyFormat(apiKey)) {
+    throw new Error("Gemini API Key is not configured or invalid in gemini_config.js.");
   }
 
   const posText = localResult.posTokens.map(t => `${t.text} (${t.weight})`).join(", ");
@@ -191,8 +188,24 @@ Target Sampling Steps: ${steps}`;
     throw new Error(errMsg);
   }
 
-  const jsonText = data.candidates[0].content.parts[0].text;
-  const result = JSON.parse(jsonText);
+  // ── Null-guard: candidates の存在チェック ────────────────
+  const jsonText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!jsonText) {
+    throw new Error("Gemini returned an empty or malformed response (no candidates text).");
+  }
+
+  let result;
+  try {
+    result = JSON.parse(jsonText);
+  } catch (e) {
+    // Fallback: Gemini がMarkdownコードブロックで包んだ場合のパース
+    const match = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (match) {
+      result = JSON.parse(match[1].trim());
+    } else {
+      throw new Error("Could not parse Gemini JSON response: " + e.message);
+    }
+  }
   result._usedModel = modelId;
   return result;
 }
@@ -210,9 +223,9 @@ Target Sampling Steps: ${steps}`;
  * @returns {Promise<Object>}
  */
 async function fetchGeminiPromptAnalysis(data) {
-  const apiKey = localStorage.getItem(_GEMINI_LS_KEY) || "";
-  if (!apiKey.trim()) {
-    throw new Error("Gemini API Key is not set. Please save your key in the Analysis tab.");
+  const apiKey = geminiConfig.apiKey ? geminiConfig.apiKey.trim() : "";
+  if (!validateGeminiApiKeyFormat(apiKey)) {
+    throw new Error("Gemini API Key is not configured or invalid in gemini_config.js.");
   }
 
   // Compact prompt structure for token efficiency
@@ -556,10 +569,10 @@ async function analyzeWorkspacePrompt() {
   ];
 
   // ── Guard: API key ──────────────────────────────────────
-  const apiKey = localStorage.getItem(_GEMINI_LS_KEY) || "";
-  if (!apiKey.trim()) {
+  const apiKey = geminiConfig.apiKey ? geminiConfig.apiKey.trim() : "";
+  if (!validateGeminiApiKeyFormat(apiKey)) {
     _showAnalysisToast(
-      "Gemini API Key が未設定です。Analysisタブでキーを保存してください。",
+      "Gemini API Key が gemini_config.js に設定されていません。ファイルを確認してください。",
       "warning"
     );
     return;
@@ -670,48 +683,78 @@ function _showAnalysisToast(message, type = "info") {
 // DOM READY: ボタンイベントを接続
 // ============================================================
 document.addEventListener("DOMContentLoaded", () => {
+  // ── PIA Run Button ──────────────────────────────────────
   const btn = document.getElementById("btn-run-intelligence-analysis");
   if (btn) {
     btn.addEventListener("click", analyzeWorkspacePrompt);
     console.log("[GeminiAnalyzer] btn-run-intelligence-analysis listener attached.");
   }
 
-  // Workspace API key UI logic
-  const wsKeyInput = document.getElementById("input-workspace-gemini-key");
-  const wsKeySaveBtn = document.getElementById("btn-save-workspace-gemini-key");
-  const wsKeyToggleBtn = document.getElementById("btn-toggle-workspace-gemini-key");
-  const wsKeyIcon = document.getElementById("icon-eye-workspace-gemini");
-
-  if (wsKeyInput) {
-    const savedKey = localStorage.getItem(_GEMINI_LS_KEY);
-    if (savedKey) wsKeyInput.value = savedKey;
-  }
-
-  if (wsKeySaveBtn && wsKeyInput) {
-    wsKeySaveBtn.addEventListener("click", () => {
-      const val = wsKeyInput.value.trim();
-      localStorage.setItem(_GEMINI_LS_KEY, val);
-      _showAnalysisToast("Gemini API Key saved to localStorage.", "success");
-    });
-  }
-
-  if (wsKeyToggleBtn && wsKeyInput && wsKeyIcon) {
-    wsKeyToggleBtn.addEventListener("click", () => {
-      if (wsKeyInput.type === "password") {
-        wsKeyInput.type = "text";
-        wsKeyIcon.classList.remove("fa-eye");
-        wsKeyIcon.classList.add("fa-eye-slash");
-      } else {
-        wsKeyInput.type = "password";
-        wsKeyIcon.classList.remove("fa-eye-slash");
-        wsKeyIcon.classList.add("fa-eye");
-      }
-    });
-  }
-
   // ── PIA Category Button → Modal ─────────────────────────
   _initPiaCategoryButtons();
+
+  // ============================================================
+  // 起動時 APIキー自動検証: gemini_config.js からキーを読み込み、
+  // 接続ステータスを各パネルの #gemini-status 要素に反映する。
+  // ============================================================
+  _validateAndShowStatus();
 });
+
+/**
+ * gemini_config.js のキーを起動時に検証し、
+ * #gemini-status, #gemini-active-model, #btn-validate-api の各要素を更新する。
+ */
+async function _validateAndShowStatus() {
+  const apiKey = geminiConfig.apiKey ? geminiConfig.apiKey.trim() : "";
+
+  const statusEl     = document.getElementById("gemini-status");
+  const modelEl      = document.getElementById("gemini-active-model");
+  const validateBtn  = document.getElementById("btn-validate-api");
+
+  // キーが未設定の場合
+  if (!validateGeminiApiKeyFormat(apiKey)) {
+    if (statusEl) {
+      statusEl.innerHTML = `<i class="fa-solid fa-circle-exclamation text-[8px]"></i> Config Required`;
+      statusEl.className = "font-semibold text-rose-400 flex items-center gap-1.5";
+    }
+    if (modelEl) modelEl.textContent = "None";
+    console.warn("[GeminiAnalyzer] gemini_config.js: API key not configured.");
+    return;
+  }
+
+  // 検証中表示
+  if (statusEl) {
+    statusEl.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin text-[8px]"></i> Validating…`;
+    statusEl.className = "font-semibold text-slate-400 flex items-center gap-1.5";
+  }
+  if (validateBtn) validateBtn.disabled = true;
+
+  try {
+    const model = await chooseBestGeminiModel(apiKey);
+    if (statusEl) {
+      statusEl.innerHTML = `<i class="fa-solid fa-circle-check text-[8px]"></i> Connected`;
+      statusEl.className = "font-semibold text-emerald-400 flex items-center gap-1.5";
+    }
+    if (modelEl) modelEl.textContent = model;
+    console.log(`[GeminiAnalyzer] ✅ API Key validated. Active model: ${model}`);
+  } catch (err) {
+    if (statusEl) {
+      statusEl.innerHTML = `<i class="fa-solid fa-circle-xmark text-[8px]"></i> Auth Error`;
+      statusEl.className = "font-semibold text-rose-400 flex items-center gap-1.5";
+    }
+    if (modelEl) modelEl.textContent = "None";
+    console.error("[GeminiAnalyzer] ❌ API Key validation failed:", err.message);
+  } finally {
+    if (validateBtn) {
+      validateBtn.disabled = false;
+    }
+  }
+
+  // Validate & Connect ボタンに手動再検証機能を付与
+  if (validateBtn) {
+    validateBtn.addEventListener("click", () => _validateAndShowStatus(), { once: false });
+  }
+}
 
 // ============================================================
 // PIA MODAL CONTROLLER
