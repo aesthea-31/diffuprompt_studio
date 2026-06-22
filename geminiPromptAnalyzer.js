@@ -296,7 +296,7 @@ Rules:
 - Return 3–6 items per array where applicable. Return empty array [] if none found.
 - All string values must be concise (max 120 chars).
 - Do NOT include any text outside the JSON object.
-- CRITICAL: Any token strings returned in the JSON (such as "text", "token", "tokenA", "tokenB") MUST EXACTLY MATCH (one-to-one, case-sensitive) the token strings present in the input "PROMPT STRUCTURE" JSON (compactPhases). Do NOT invent new tokens, summarize, or modify any existing token strings. MUST NOT summarize, truncate, or split any token strings. Even if a token is a long sentence, you must return it exactly as it appears in the input PROMPT STRUCTURE (including spaces and symbols). If no matching token exists for a category, DO NOT invent one; return an empty array `[]` instead.
+- CRITICAL: Any token strings returned in the JSON (such as "text", "token", "tokenA", "tokenB") MUST EXACTLY MATCH (one-to-one, case-sensitive) the token strings present in the input "PROMPT STRUCTURE" JSON (compactPhases). Do NOT invent new tokens, summarize, or modify any existing token strings. MUST NOT summarize, truncate, or split any token strings. Even if a token is a long sentence, you must return it exactly as it appears in the input PROMPT STRUCTURE (including spaces and symbols). If no matching token exists for a category, DO NOT invent one; return an empty array [] instead.
 - CRITICAL: The explanation fields (reason, description, suggestion, issue) MUST BE OUTPUT STRICTLY IN JAPANESE (必ず日本語で出力すること). Token texts, concept names, and phase names should remain in their original English.`;
 
   // 固定モデル: gemini-2.5-flash-lite
