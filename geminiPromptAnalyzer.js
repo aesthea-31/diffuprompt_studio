@@ -693,6 +693,15 @@ document.addEventListener("DOMContentLoaded", () => {
   // ── PIA Category Button → Modal ─────────────────────────
   _initPiaCategoryButtons();
 
+  // ── グローバルへ APIキーを公開 ────────────────────────────
+  // app.js (非ESモジュール) が localStorage 空のとき
+  // window.__geminiConfigApiKey をフォールバックとして参照できるようにする。
+  const _configKey = geminiConfig.apiKey ? geminiConfig.apiKey.trim() : "";
+  if (_configKey) {
+    window.__geminiConfigApiKey = _configKey;
+    console.log("[GeminiAnalyzer] geminiConfig.apiKey exposed as window.__geminiConfigApiKey.");
+  }
+
   // ============================================================
   // 起動時 APIキー自動検証: gemini_config.js からキーを読み込み、
   // 接続ステータスを各パネルの #gemini-status 要素に反映する。

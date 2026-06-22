@@ -5155,9 +5155,13 @@ function initAnalysisPanel() {
         return;
       }
 
-      const apiKey = localStorage.getItem(LS_GEMINI_API_KEY) || "";
+      // LocalStorage のキーが空の場合は、gemini_config.js から公開された
+      // window.__geminiConfigApiKey をフォールバックとして使用する。
+      // これにより GitHub Pages 上で画面入力欄が空でも埋め込みキーで解析が実行される。
+      const apiKey = localStorage.getItem(LS_GEMINI_API_KEY) ||
+        (window.__geminiConfigApiKey || "");
       if (!apiKey) {
-        // No API key: fall back to local analysis silently
+        // No API key at all: fall back to local analysis silently
         lastSemanticResult = localResult;
         renderAnalysisPanel(localResult);
         setAnalysisSourceBadge('local');
