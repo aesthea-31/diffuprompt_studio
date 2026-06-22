@@ -20,10 +20,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ★ここで JavaScript ファイル内の文字列を実際の秘密鍵に置換します
-      - name: Inject Firebase API Key
+     # ★ここで Firebase と Gemini の APIキーをそれぞれのファイルに注入します
+      # ※ もしGeminiの設定を別のJSファイル（例: gemini_config.js）に書いている場合は、ファイル名を変更してください。
+      # ※ もし同じ firebase_config.js 内にまとめている場合は、両方とも firebase_config.js にしてください。
+      - name: Inject API Key
         run: |
           sed -i 's/NEXT_PUBLIC_FIREBASE_API_KEY/${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}/g' firebase_config.js
+          sed -i 's/NEXT_PUBLIC_GEMINI_API_KEY/${{ secrets.NEXT_PUBLIC_GEMINI_API_KEY }}/g' gemini_config.js
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
