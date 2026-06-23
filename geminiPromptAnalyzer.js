@@ -28,9 +28,27 @@ import { geminiConfig } from "./gemini_config.js";
 
 /** モデル優先順位（Semantic Dominance 解析も参照） */
 const GEMINI_MODEL_PRIORITY = [
-  "gemini-2.5-flash",
-  "gemini-2.5-flash-lite"
+  "gemini-3.5-flash",
+  "gemini-3.1-pro"
 ];
+
+/**
+ * 統一されたAPIキー取得ロジック。
+ * 1. 最優先で localStorage から "diffu_gemini_api_key" を取得。
+ * 2. 次に geminiConfig.apiKey (gemini_config.js) を取得。
+ * 3. 最後に window.__geminiConfigApiKey を取得。
+ * @returns {string} APIキー
+ */
+function getApiKey() {
+  let key = localStorage.getItem("diffu_gemini_api_key") || "";
+  if (!key) {
+    key = (geminiConfig && geminiConfig.apiKey) ? geminiConfig.apiKey.trim() : "";
+  }
+  if (!key) {
+    key = window.__geminiConfigApiKey || "";
+  }
+  return key.trim();
+}
 
 // ============================================================
 // ─── 移管関数 ─────────────────────────────────────────────
@@ -39,7 +57,7 @@ const GEMINI_MODEL_PRIORITY = [
 /**
  * 利用可能な Gemini モデルのリストを v1beta API から取得する。
  * @param {string} apiKey
- * @returns {Promise<string[]>} e.g. ["models/gemini-2.5-flash", ...]
+ * @returns {Promise<string[]>} e.g. ["models/gemini-3.5-flash", ...]
  */
 async function fetchGeminiModelList(apiKey) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey.trim())}`;
@@ -63,8 +81,8 @@ async function chooseBestGeminiModel(apiKey) {
   try {
     available = await fetchGeminiModelList(apiKey);
   } catch (e) {
-    console.warn("[GeminiAnalyzer] Could not fetch model list, falling back to gemini-2.5-flash-lite:", e.message);
-    return "gemini-2.5-flash-lite";
+    console.warn("[GeminiAnalyzer] Could not fetch model list, falling back to gemini-3.5-flash:", e.message);
+    return "gemini-3.5-flash";
   }
 
   for (const candidate of GEMINI_MODEL_PRIORITY) {
@@ -75,8 +93,8 @@ async function chooseBestGeminiModel(apiKey) {
     }
   }
 
-  console.warn("[GeminiAnalyzer] No priority model available. Falling back to gemini-2.5-flash-lite.");
-  return "gemini-2.5-flash-lite";
+  console.warn("[GeminiAnalyzer] No priority model available. Falling back to gemini-3.5-flash.");
+  return "gemini-3.5-flash";
 }
 
 /**
@@ -98,9 +116,9 @@ function validateGeminiApiKeyFormat(key) {
  * @returns {Promise<Object>}  - Gemini が返した分析 JSON
  */
 async function fetchGeminiSemanticAnalysis(localResult, steps) {
-  const apiKey = geminiConfig.apiKey ? geminiConfig.apiKey.trim() : "";
+  const apiKey = getApiKey();
   if (!validateGeminiApiKeyFormat(apiKey)) {
-    throw new Error("Gemini API Key is not configured or invalid in gemini_config.js.");
+    throw new Error("Gemini API Key is not configured or invalid.");
   }
 
   const posText = localResult.posTokens.map(t => `${t.text} (${t.weight})`).join(", ");
@@ -216,16 +234,16 @@ Target Sampling Steps: ${steps}`;
 
 /**
  * fetchGeminiPromptAnalysis
- * gemini-2.5-flash-lite を固定モデルとして使用し、
+ * gemini-3.5-flash を固定モデルとして使用し、
  * プロンプト構造の7項目を JSON で返す Gemini 呼び出し。
  *
  * @param {Object} data - buildPromptStructureJSON() の戻り値
  * @returns {Promise<Object>}
  */
 async function fetchGeminiPromptAnalysis(data) {
-  const apiKey = geminiConfig.apiKey ? geminiConfig.apiKey.trim() : "";
+  const apiKey = getApiKey();
   if (!validateGeminiApiKeyFormat(apiKey)) {
-    throw new Error("Gemini API Key is not configured or invalid in gemini_config.js.");
+    throw new Error("Gemini API Key is not configured or invalid.");
   }
 
   // Compact prompt structure for token efficiency
@@ -299,8 +317,8 @@ Rules:
 - CRITICAL: Any token strings returned in the JSON (such as "text", "token", "tokenA", "tokenB") MUST EXACTLY MATCH (one-to-one, case-sensitive) the token strings present in the input "PROMPT STRUCTURE" JSON (compactPhases). Do NOT invent new tokens, summarize, or modify any existing token strings. MUST NOT summarize, truncate, or split any token strings. Even if a token is a long sentence, you must return it exactly as it appears in the input PROMPT STRUCTURE (including spaces and symbols). If no matching token exists for a category, DO NOT invent one; return an empty array [] instead.
 - CRITICAL: The explanation fields (reason, description, suggestion, issue) MUST BE OUTPUT STRICTLY IN JAPANESE (必ず日本語で出力すること). Token texts, concept names, and phase names should remain in their original English.`;
 
-  // 固定モデル: gemini-2.5-flash-lite
-  const modelId = "gemini-2.5-flash-lite";
+  // 固定モデル: gemini-3.5-flash
+  const modelId = "gemini-3.5-flash";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${encodeURIComponent(apiKey.trim())}`;
   console.log("[GeminiAnalyzer] fetchGeminiPromptAnalysis → model:", modelId);
 
@@ -508,11 +526,11 @@ function renderWorkspaceGeminiResult(result) {
         </div>
       </div>
       <div class="mt-2 text-[10px] text-slate-500">
-        Analyzed by <span class="text-indigo-400 font-semibold">${result._usedModel || "gemini-2.5-flash-lite"}</span>
+        Analyzed by <span class="text-indigo-400 font-semibold">${result._usedModel || "gemini-3.5-flash"}</span>
       </div>
     `;
     // Update summary truncated text for the button card
-    // optimization.textContent = `${scoreLabel} · ${totalIssues} issue${totalIssues !== 1 ? 's' : ''} · ${result._usedModel || 'gemini-2.5-flash-lite'}`;
+    // optimization.textContent = `${scoreLabel} · ${totalIssues} issue${totalIssues !== 1 ? 's' : ''} · ${result._usedModel || 'gemini-3.5-flash'}`;
   }
 
   // ── Danger Positives ─────────────────────────────────────
@@ -569,10 +587,10 @@ async function analyzeWorkspacePrompt() {
   ];
 
   // ── Guard: API key ──────────────────────────────────────
-  const apiKey = geminiConfig.apiKey ? geminiConfig.apiKey.trim() : "";
+  const apiKey = getApiKey();
   if (!validateGeminiApiKeyFormat(apiKey)) {
     _showAnalysisToast(
-      "Gemini API Key が gemini_config.js に設定されていません。ファイルを確認してください。",
+      "Gemini API Key が設定されていません。画面の入力欄または gemini_config.js を確認してください。",
       "warning"
     );
     return;
@@ -624,7 +642,7 @@ async function analyzeWorkspacePrompt() {
     renderWorkspaceGeminiResult(result);
 
     _showAnalysisToast(
-      `Intelligence Analysis 完了 (${result._usedModel || "gemini-2.5-flash-lite"})`,
+      `Intelligence Analysis 完了 (${result._usedModel || "gemini-3.5-flash"})`,
       "success"
     );
 
@@ -714,7 +732,7 @@ document.addEventListener("DOMContentLoaded", () => {
  * #gemini-status, #gemini-active-model, #btn-validate-api の各要素を更新する。
  */
 async function _validateAndShowStatus() {
-  const apiKey = geminiConfig.apiKey ? geminiConfig.apiKey.trim() : "";
+  const apiKey = getApiKey();
 
   const statusEl     = document.getElementById("gemini-status");
   const modelEl      = document.getElementById("gemini-active-model");
@@ -727,7 +745,7 @@ async function _validateAndShowStatus() {
       statusEl.className = "font-semibold text-rose-400 flex items-center gap-1.5";
     }
     if (modelEl) modelEl.textContent = "None";
-    console.warn("[GeminiAnalyzer] gemini_config.js: API key not configured.");
+    console.warn("[GeminiAnalyzer] API key not configured.");
     return;
   }
 
@@ -1010,5 +1028,7 @@ window.renderWorkspaceGeminiResult = renderWorkspaceGeminiResult;
 window.analyzeWorkspacePrompt      = analyzeWorkspacePrompt;
 window.openPiaModal                = openPiaModal;
 window.closePiaModal               = closePiaModal;
+window.getApiKey                   = getApiKey;
+window._validateAndShowStatus      = _validateAndShowStatus;
 
 console.log("[GeminiAnalyzer] Module loaded. All Gemini functions available.");

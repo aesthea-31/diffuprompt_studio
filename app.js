@@ -5114,6 +5114,9 @@ function initAnalysisPanel() {
       const key = document.getElementById("input-gemini-api-key").value.trim();
       localStorage.setItem(LS_GEMINI_API_KEY, key);
       showToast("Gemini API Key saved to localStorage!", "success");
+      if (typeof window._validateAndShowStatus === "function") {
+        window._validateAndShowStatus();
+      }
     });
   }
 
@@ -5155,11 +5158,10 @@ function initAnalysisPanel() {
         return;
       }
 
-      // LocalStorage のキーが空の場合は、gemini_config.js から公開された
-      // window.__geminiConfigApiKey をフォールバックとして使用する。
-      // これにより GitHub Pages 上で画面入力欄が空でも埋め込みキーで解析が実行される。
-      const apiKey = localStorage.getItem(LS_GEMINI_API_KEY) ||
-        (window.__geminiConfigApiKey || "");
+      // getApiKey() 共通関数を使用して最優先で localStorage から APIキーを取得する。
+      const apiKey = (typeof window.getApiKey === "function")
+        ? window.getApiKey()
+        : (localStorage.getItem(LS_GEMINI_API_KEY) || (window.__geminiConfigApiKey || ""));
       if (!apiKey) {
         // No API key at all: fall back to local analysis silently
         lastSemanticResult = localResult;
