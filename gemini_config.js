@@ -1,5 +1,10 @@
-// gemini_config.example.js (GitHub共有用テンプレート)
-// このファイルを「gemini_config.js」にリネームし、実際のGemini APIキーを記入して使用してください。
+// gemini_config.example.js (GitHub���L�p�e���v���[�g)
+// ���̃t�@�C�����ugemini_config.js�v�Ƀ��l�[�����A���ۂ�Gemini API�L�[���L�����Ďg�p���Ă��������B
 export const geminiConfig = {
-    apiKey: "NEXT_PUBLIC_GEMINI_API_KEY"
+    apiKey: "NEXT_PUBLIC_GEMINI_API_KEY",
+    models: {
+        workspace: "gemini-3.5-flash",
+        deepAnalysis: "gemini-3.1-pro"
+    }
 };
+

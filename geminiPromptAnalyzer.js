@@ -26,24 +26,14 @@ import { geminiConfig } from "./gemini_config.js";
 // CONFIG & SHARED STATE
 // ============================================================
 
-/** モデル優先順位（Semantic Dominance 解析も参照） */
-const GEMINI_MODEL_PRIORITY = [
-  "gemini-3.5-flash",
-  "gemini-3.1-pro"
-];
-
 /**
  * 統一されたAPIキー取得ロジック。
- * 1. 最優先で localStorage から "diffu_gemini_api_key" を取得。
- * 2. 次に geminiConfig.apiKey (gemini_config.js) を取得。
- * 3. 最後に window.__geminiConfigApiKey を取得。
+ * 1. geminiConfig.apiKey (gemini_config.js) を取得。
+ * 2. window.__geminiConfigApiKey を取得。
  * @returns {string} APIキー
  */
 function getApiKey() {
-  let key = localStorage.getItem("diffu_gemini_api_key") || "";
-  if (!key) {
-    key = (geminiConfig && geminiConfig.apiKey) ? geminiConfig.apiKey.trim() : "";
-  }
+  let key = (geminiConfig && geminiConfig.apiKey) ? geminiConfig.apiKey.trim() : "";
   if (!key) {
     key = window.__geminiConfigApiKey || "";
   }
@@ -53,49 +43,6 @@ function getApiKey() {
 // ============================================================
 // ─── 移管関数 ─────────────────────────────────────────────
 // ============================================================
-
-/**
- * 利用可能な Gemini モデルのリストを v1beta API から取得する。
- * @param {string} apiKey
- * @returns {Promise<string[]>} e.g. ["models/gemini-3.5-flash", ...]
- */
-async function fetchGeminiModelList(apiKey) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey.trim())}`;
-  const response = await fetch(url);
-  if (!response.ok) {
-    const errData = await response.json().catch(() => ({}));
-    throw new Error(errData.error?.message || `Model list fetch failed: HTTP ${response.status}`);
-  }
-  const data = await response.json();
-  console.log("[GeminiAnalyzer] Model list:", data);
-  return (data.models || []).map(m => m.name);
-}
-
-/**
- * GEMINI_MODEL_PRIORITY に従い最適なモデル ID を選択して返す。
- * @param {string} apiKey
- * @returns {Promise<string>}
- */
-async function chooseBestGeminiModel(apiKey) {
-  let available;
-  try {
-    available = await fetchGeminiModelList(apiKey);
-  } catch (e) {
-    console.warn("[GeminiAnalyzer] Could not fetch model list, falling back to gemini-3.5-flash:", e.message);
-    return "gemini-3.5-flash";
-  }
-
-  for (const candidate of GEMINI_MODEL_PRIORITY) {
-    const found = available.some(name => name === `models/${candidate}` || name === candidate);
-    if (found) {
-      console.log(`[GeminiAnalyzer] Selected model: ${candidate}`);
-      return candidate;
-    }
-  }
-
-  console.warn("[GeminiAnalyzer] No priority model available. Falling back to gemini-3.5-flash.");
-  return "gemini-3.5-flash";
-}
 
 /**
  * validateGeminiApiKeyFormat — API キーが空でないか検証する。
@@ -175,7 +122,7 @@ Positive Prompt: [ ${posText} ]
 Negative Prompt: [ ${negText} ]
 Target Sampling Steps: ${steps}`;
 
-  const modelId = await chooseBestGeminiModel(apiKey);
+  const modelId = (geminiConfig.models && geminiConfig.models.deepAnalysis) ? geminiConfig.models.deepAnalysis : "gemini-3.1-pro";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${encodeURIComponent(apiKey.trim())}`;
   console.log(`[GeminiAnalyzer] fetchGeminiSemanticAnalysis → model: ${modelId}`);
 
@@ -258,7 +205,7 @@ async function fetchGeminiPromptAnalysis(data) {
       pos: t.position,
       role: t.role,
       ...(t.redundancyFlag ? { dup: t.redundancyFlag.type } : {}),
-      ...(t.conflictFlag   ? { conflict: true }             : {})
+      ...(t.conflictFlag ? { conflict: true } : {})
     }))
   }));
 
@@ -317,8 +264,7 @@ Rules:
 - CRITICAL: Any token strings returned in the JSON (such as "text", "token", "tokenA", "tokenB") MUST EXACTLY MATCH (one-to-one, case-sensitive) the token strings present in the input "PROMPT STRUCTURE" JSON (compactPhases). Do NOT invent new tokens, summarize, or modify any existing token strings. MUST NOT summarize, truncate, or split any token strings. Even if a token is a long sentence, you must return it exactly as it appears in the input PROMPT STRUCTURE (including spaces and symbols). If no matching token exists for a category, DO NOT invent one; return an empty array [] instead.
 - CRITICAL: The explanation fields (reason, description, suggestion, issue) MUST BE OUTPUT STRICTLY IN JAPANESE (必ず日本語で出力すること). Token texts, concept names, and phase names should remain in their original English.`;
 
-  // 固定モデル: gemini-3.5-flash
-  const modelId = "gemini-3.5-flash";
+  const modelId = (geminiConfig.models && geminiConfig.models.workspace) ? geminiConfig.models.workspace : "gemini-3.5-flash";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${encodeURIComponent(apiKey.trim())}`;
   console.log("[GeminiAnalyzer] fetchGeminiPromptAnalysis → model:", modelId);
 
@@ -393,7 +339,7 @@ function renderWorkspaceGeminiResult(result) {
       return '<span class="text-slate-600 italic">None detected.</span>';
     }
     return items.map(item => {
-      const text   = item[textKey] || item.text || "—";
+      const text = item[textKey] || item.text || "—";
       const reason = item[reasonKey] || item.description || item.suggestion || "";
       const weight = item.weight != null ? ` <span class="opacity-60">(${item.weight}x)</span>` : "";
       return `<div class="mb-1.5">
@@ -408,8 +354,8 @@ function renderWorkspaceGeminiResult(result) {
       return '<span class="text-slate-600 italic">No conflicts detected.</span>';
     }
     return items.map(item => {
-      const a    = item[keyA] || "—";
-      const b    = item[keyB] || "";
+      const a = item[keyA] || "—";
+      const b = item[keyB] || "";
       const desc = item[descKey] || item.suggestion || "";
       return `<div class="mb-1.5">
         <span class="text-rose-400 font-semibold">${_escHtml(a)}</span>
@@ -456,12 +402,12 @@ function renderWorkspaceGeminiResult(result) {
   // ── Redundant Tokens + Duplicate Concepts ────────────────
   const redundant = el("pia-redundant-tokens");
   if (redundant) {
-    const redHtml  = renderTokenList(result.redundantTokens, "text", "suggestion");
+    const redHtml = renderTokenList(result.redundantTokens, "text", "suggestion");
     const dupItems = (result.duplicateConcepts || []).map(d => ({
       text: `[Concept] ${d.concept}`,
       reason: `${(d.instances || []).join(", ")} — ${d.suggestion || ""}`
     }));
-    const dupHtml  = renderTokenList(dupItems, "text", "reason");
+    const dupHtml = renderTokenList(dupItems, "text", "reason");
     redundant.innerHTML = redHtml + (dupItems.length > 0 ? `<hr class="border-slate-800/60 my-2">${dupHtml}` : "");
   }
 
@@ -487,20 +433,20 @@ function renderWorkspaceGeminiResult(result) {
   const optimization = el("pia-optimization");
   if (optimization) {
     const totalIssues =
-      (result.semanticConflicts?.length  || 0) +
-      (result.redundantTokens?.length    || 0) +
-      (result.duplicateConcepts?.length  || 0) +
+      (result.semanticConflicts?.length || 0) +
+      (result.redundantTokens?.length || 0) +
+      (result.duplicateConcepts?.length || 0) +
       (result.incorrectTokenOrdering?.length || 0) +
       (result.phaseHierarchyProblems?.length || 0);
 
     const strongCount = result.strongestTokens?.length || 0;
-    const weakCount   = result.weakestTokens?.length   || 0;
+    const weakCount = result.weakestTokens?.length || 0;
 
     let scoreColor = "text-emerald-400";
     let scoreLabel = "Excellent";
-    if (totalIssues >= 8)      { scoreColor = "text-rose-400";   scoreLabel = "Needs Work"; }
-    else if (totalIssues >= 4) { scoreColor = "text-amber-400";  scoreLabel = "Fair"; }
-    else if (totalIssues >= 2) { scoreColor = "text-cyan-400";   scoreLabel = "Good"; }
+    if (totalIssues >= 8) { scoreColor = "text-rose-400"; scoreLabel = "Needs Work"; }
+    else if (totalIssues >= 4) { scoreColor = "text-amber-400"; scoreLabel = "Fair"; }
+    else if (totalIssues >= 2) { scoreColor = "text-cyan-400"; scoreLabel = "Good"; }
 
     optimization.innerHTML = `
       <div class="flex items-center justify-between mb-2">
@@ -574,7 +520,7 @@ function renderWorkspaceGeminiResult(result) {
  *  3. renderWorkspaceGeminiResult() で UI に描画
  */
 async function analyzeWorkspacePrompt() {
-  const btn    = document.getElementById("btn-run-intelligence-analysis");
+  const btn = document.getElementById("btn-run-intelligence-analysis");
   const panels = [
     "pia-optimization",
     "pia-layer-order",
@@ -720,68 +666,7 @@ document.addEventListener("DOMContentLoaded", () => {
     console.log("[GeminiAnalyzer] geminiConfig.apiKey exposed as window.__geminiConfigApiKey.");
   }
 
-  // ============================================================
-  // 起動時 APIキー自動検証: gemini_config.js からキーを読み込み、
-  // 接続ステータスを各パネルの #gemini-status 要素に反映する。
-  // ============================================================
-  _validateAndShowStatus();
 });
-
-/**
- * gemini_config.js のキーを起動時に検証し、
- * #gemini-status, #gemini-active-model, #btn-validate-api の各要素を更新する。
- */
-async function _validateAndShowStatus() {
-  const apiKey = getApiKey();
-
-  const statusEl     = document.getElementById("gemini-status");
-  const modelEl      = document.getElementById("gemini-active-model");
-  const validateBtn  = document.getElementById("btn-validate-api");
-
-  // キーが未設定の場合
-  if (!validateGeminiApiKeyFormat(apiKey)) {
-    if (statusEl) {
-      statusEl.innerHTML = `<i class="fa-solid fa-circle-exclamation text-[8px]"></i> Config Required`;
-      statusEl.className = "font-semibold text-rose-400 flex items-center gap-1.5";
-    }
-    if (modelEl) modelEl.textContent = "None";
-    console.warn("[GeminiAnalyzer] API key not configured.");
-    return;
-  }
-
-  // 検証中表示
-  if (statusEl) {
-    statusEl.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin text-[8px]"></i> Validating…`;
-    statusEl.className = "font-semibold text-slate-400 flex items-center gap-1.5";
-  }
-  if (validateBtn) validateBtn.disabled = true;
-
-  try {
-    const model = await chooseBestGeminiModel(apiKey);
-    if (statusEl) {
-      statusEl.innerHTML = `<i class="fa-solid fa-circle-check text-[8px]"></i> Connected`;
-      statusEl.className = "font-semibold text-emerald-400 flex items-center gap-1.5";
-    }
-    if (modelEl) modelEl.textContent = model;
-    console.log(`[GeminiAnalyzer] ✅ API Key validated. Active model: ${model}`);
-  } catch (err) {
-    if (statusEl) {
-      statusEl.innerHTML = `<i class="fa-solid fa-circle-xmark text-[8px]"></i> Auth Error`;
-      statusEl.className = "font-semibold text-rose-400 flex items-center gap-1.5";
-    }
-    if (modelEl) modelEl.textContent = "None";
-    console.error("[GeminiAnalyzer] ❌ API Key validation failed:", err.message);
-  } finally {
-    if (validateBtn) {
-      validateBtn.disabled = false;
-    }
-  }
-
-  // Validate & Connect ボタンに手動再検証機能を付与
-  if (validateBtn) {
-    validateBtn.addEventListener("click", () => _validateAndShowStatus(), { once: false });
-  }
-}
 
 // ============================================================
 // PIA MODAL CONTROLLER
@@ -818,18 +703,18 @@ function _buildPiaModalContent(category) {
 
   if (category === "optimization") {
     const totalIssues =
-      (result.semanticConflicts?.length  || 0) +
-      (result.redundantTokens?.length    || 0) +
-      (result.duplicateConcepts?.length  || 0) +
+      (result.semanticConflicts?.length || 0) +
+      (result.redundantTokens?.length || 0) +
+      (result.duplicateConcepts?.length || 0) +
       (result.incorrectTokenOrdering?.length || 0) +
       (result.phaseHierarchyProblems?.length || 0);
     const strongCount = result.strongestTokens?.length || 0;
-    const weakCount   = result.weakestTokens?.length   || 0;
+    const weakCount = result.weakestTokens?.length || 0;
     let scoreLabel = "Excellent";
-    let scoreHue   = "#34d399";
-    if (totalIssues >= 8)      { scoreLabel = "Needs Work"; scoreHue = "#f87171"; }
-    else if (totalIssues >= 4) { scoreLabel = "Fair";       scoreHue = "#fbbf24"; }
-    else if (totalIssues >= 2) { scoreLabel = "Good";       scoreHue = "#22d3ee"; }
+    let scoreHue = "#34d399";
+    if (totalIssues >= 8) { scoreLabel = "Needs Work"; scoreHue = "#f87171"; }
+    else if (totalIssues >= 4) { scoreLabel = "Fair"; scoreHue = "#fbbf24"; }
+    else if (totalIssues >= 2) { scoreLabel = "Good"; scoreHue = "#22d3ee"; }
 
     return `
       <div style="background:rgba(15,23,42,0.6);border-radius:12px;padding:14px;margin-bottom:12px;border:1px solid rgba(99,102,241,0.2)">
@@ -840,7 +725,7 @@ function _buildPiaModalContent(category) {
         <div class="pia-modal-item"><div class="pia-modal-item-title" style="color:#34d399;">${strongCount} Strong</div><div class="pia-modal-item-sub">High-impact tokens</div></div>
         <div class="pia-modal-item"><div class="pia-modal-item-title" style="color:#f87171;">${weakCount} Weak</div><div class="pia-modal-item-sub">Low-influence tokens</div></div>
         <div class="pia-modal-item"><div class="pia-modal-item-title" style="color:#fbbf24;">${result.semanticConflicts?.length || 0} Conflicts</div><div class="pia-modal-item-sub">Semantic contradictions</div></div>
-        <div class="pia-modal-item"><div class="pia-modal-item-title" style="color:#22d3ee;">${(result.redundantTokens?.length||0)+(result.duplicateConcepts?.length||0)} Redundant</div><div class="pia-modal-item-sub">Duplicates &amp; concepts</div></div>
+        <div class="pia-modal-item"><div class="pia-modal-item-title" style="color:#22d3ee;">${(result.redundantTokens?.length || 0) + (result.duplicateConcepts?.length || 0)} Redundant</div><div class="pia-modal-item-sub">Duplicates &amp; concepts</div></div>
       </div>
       <div class="pia-modal-section-label">Analyzed by</div>
       <div class="pia-modal-item"><div class="pia-modal-item-title" style="color:#a5b4fc;">${escH(result._usedModel || "gemini-2.5-flash-lite")}</div></div>`;
@@ -848,7 +733,7 @@ function _buildPiaModalContent(category) {
 
   if (category === "layer-order") {
     const orderItems = (result.incorrectTokenOrdering || []);
-    const hierItems  = (result.phaseHierarchyProblems || []);
+    const hierItems = (result.phaseHierarchyProblems || []);
     if (orderItems.length === 0 && hierItems.length === 0) return emptyState("fa-layer-group");
     let html = "";
     if (orderItems.length > 0) {
@@ -900,7 +785,7 @@ function _buildPiaModalContent(category) {
     if (dupItems.length) {
       html += `<div class="pia-modal-section-label">Duplicate Concepts</div>`;
       dupItems.forEach(i => html += itemCard(`[Concept] ${i.concept}`,
-        `${(i.instances||[]).join(", ")} — ${i.suggestion || ""}`, "CONCEPT"));
+        `${(i.instances || []).join(", ")} — ${i.suggestion || ""}`, "CONCEPT"));
     }
     return html;
   }
@@ -941,14 +826,14 @@ function _buildPiaModalContent(category) {
 
 /** Category metadata: title, icon, accent color */
 const _PIA_CATEGORY_META = {
-  "optimization":  { title: "Optimization",     icon: "fa-solid fa-lightbulb",            color: "#f472b6" },
-  "layer-order":   { title: "Layer Order",       icon: "fa-solid fa-layer-group",           color: "#c084fc" },
-  "strongest":     { title: "Strongest Tokens",  icon: "fa-solid fa-arrow-up-right-dots",   color: "#34d399" },
-  "weakest":       { title: "Weakest Tokens",    icon: "fa-solid fa-arrow-down-short-wide", color: "#f87171" },
-  "redundant":     { title: "Redundant Tokens",  icon: "fa-solid fa-clone",                 color: "#22d3ee" },
-  "conflicts":     { title: "Semantic Conflicts",icon: "fa-solid fa-triangle-exclamation",  color: "#fbbf24" },
-  "danger-pos":    { title: "Danger Positives",  icon: "fa-solid fa-radiation",             color: "#fb923c" },
-  "danger-neg":    { title: "Danger Negatives",  icon: "fa-solid fa-skull-crossbones",      color: "#f87171" },
+  "optimization": { title: "Optimization", icon: "fa-solid fa-lightbulb", color: "#f472b6" },
+  "layer-order": { title: "Layer Order", icon: "fa-solid fa-layer-group", color: "#c084fc" },
+  "strongest": { title: "Strongest Tokens", icon: "fa-solid fa-arrow-up-right-dots", color: "#34d399" },
+  "weakest": { title: "Weakest Tokens", icon: "fa-solid fa-arrow-down-short-wide", color: "#f87171" },
+  "redundant": { title: "Redundant Tokens", icon: "fa-solid fa-clone", color: "#22d3ee" },
+  "conflicts": { title: "Semantic Conflicts", icon: "fa-solid fa-triangle-exclamation", color: "#fbbf24" },
+  "danger-pos": { title: "Danger Positives", icon: "fa-solid fa-radiation", color: "#fb923c" },
+  "danger-neg": { title: "Danger Negatives", icon: "fa-solid fa-skull-crossbones", color: "#f87171" },
 };
 
 /**
@@ -956,17 +841,17 @@ const _PIA_CATEGORY_META = {
  * @param {string} category
  */
 function openPiaModal(category) {
-  const overlay  = document.getElementById("pia-modal-overlay");
-  const titleEl  = document.getElementById("pia-modal-title");
-  const iconEl   = document.getElementById("pia-modal-icon");
-  const bodyEl   = document.getElementById("pia-modal-body");
+  const overlay = document.getElementById("pia-modal-overlay");
+  const titleEl = document.getElementById("pia-modal-title");
+  const iconEl = document.getElementById("pia-modal-icon");
+  const bodyEl = document.getElementById("pia-modal-body");
   if (!overlay) return;
 
   const meta = _PIA_CATEGORY_META[category] || { title: category, icon: "fa-solid fa-circle-info", color: "#a5b4fc" };
   titleEl.textContent = meta.title;
   titleEl.style.color = meta.color;
-  iconEl.innerHTML    = `<i class="${meta.icon}" style="color:${meta.color}"></i>`;
-  bodyEl.innerHTML    = _buildPiaModalContent(category);
+  iconEl.innerHTML = `<i class="${meta.icon}" style="color:${meta.color}"></i>`;
+  bodyEl.innerHTML = _buildPiaModalContent(category);
 
   overlay.setAttribute("aria-hidden", "false");
   overlay.classList.add("is-open");
@@ -1019,16 +904,16 @@ function _initPiaCategoryButtons() {
 // ============================================================
 // GLOBAL EXPORT
 // ============================================================
-window.fetchGeminiModelList       = fetchGeminiModelList;
-window.chooseBestGeminiModel      = chooseBestGeminiModel;
+window.fetchGeminiModelList = fetchGeminiModelList;
+window.chooseBestGeminiModel = chooseBestGeminiModel;
 window.validateGeminiApiKeyFormat = validateGeminiApiKeyFormat;
 window.fetchGeminiSemanticAnalysis = fetchGeminiSemanticAnalysis;
-window.fetchGeminiPromptAnalysis   = fetchGeminiPromptAnalysis;
+window.fetchGeminiPromptAnalysis = fetchGeminiPromptAnalysis;
 window.renderWorkspaceGeminiResult = renderWorkspaceGeminiResult;
-window.analyzeWorkspacePrompt      = analyzeWorkspacePrompt;
-window.openPiaModal                = openPiaModal;
-window.closePiaModal               = closePiaModal;
-window.getApiKey                   = getApiKey;
-window._validateAndShowStatus      = _validateAndShowStatus;
+window.analyzeWorkspacePrompt = analyzeWorkspacePrompt;
+window.openPiaModal = openPiaModal;
+window.closePiaModal = closePiaModal;
+window.getApiKey = getApiKey;
+window._validateAndShowStatus = _validateAndShowStatus;
 
 console.log("[GeminiAnalyzer] Module loaded. All Gemini functions available.");

@@ -4191,7 +4191,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 // ============================================================
 //  GEMINI API CONFIG & STATE
 // ============================================================
-const LS_GEMINI_API_KEY = "diffu_gemini_api_key";
+
 let lastSemanticResult = null;
 
 // ── Gemini API functions are defined in geminiPromptAnalyzer.js ──
@@ -5102,39 +5102,7 @@ function setAnalysisSourceBadge(source, modelName) {
 }
 
 function initAnalysisPanel() {
-  // Restore saved Gemini API key
-  const savedKey = localStorage.getItem(LS_GEMINI_API_KEY) || "";
-  const keyInput = document.getElementById("input-gemini-api-key");
-  if (keyInput) keyInput.value = savedKey;
 
-  // Save Key button
-  const btnSaveKey = document.getElementById("btn-save-gemini-key");
-  if (btnSaveKey) {
-    btnSaveKey.addEventListener("click", () => {
-      const key = document.getElementById("input-gemini-api-key").value.trim();
-      localStorage.setItem(LS_GEMINI_API_KEY, key);
-      showToast("Gemini API Key saved to localStorage!", "success");
-      if (typeof window._validateAndShowStatus === "function") {
-        window._validateAndShowStatus();
-      }
-    });
-  }
-
-  // Show / Hide API key toggle
-  const btnToggleKey = document.getElementById("btn-toggle-gemini-key");
-  if (btnToggleKey) {
-    btnToggleKey.addEventListener("click", () => {
-      const input = document.getElementById("input-gemini-api-key");
-      const icon = document.getElementById("icon-eye-gemini");
-      if (input.type === "password") {
-        input.type = "text";
-        icon.classList.replace("fa-eye", "fa-eye-slash");
-      } else {
-        input.type = "password";
-        icon.classList.replace("fa-eye-slash", "fa-eye");
-      }
-    });
-  }
 
   // Collapsible toggle
   const toggleBtn = document.getElementById('da-topo-toggle');
@@ -5158,10 +5126,10 @@ function initAnalysisPanel() {
         return;
       }
 
-      // getApiKey() 共通関数を使用して最優先で localStorage から APIキーを取得する。
+      // getApiKey() 共通関数を使用してAPIキーを取得する。
       const apiKey = (typeof window.getApiKey === "function")
         ? window.getApiKey()
-        : (localStorage.getItem(LS_GEMINI_API_KEY) || (window.__geminiConfigApiKey || ""));
+        : (window.__geminiConfigApiKey || "");
       if (!apiKey) {
         // No API key at all: fall back to local analysis silently
         lastSemanticResult = localResult;
