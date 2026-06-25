@@ -904,8 +904,6 @@ function _initPiaCategoryButtons() {
 // ============================================================
 // GLOBAL EXPORT
 // ============================================================
-window.fetchGeminiModelList = fetchGeminiModelList;
-window.chooseBestGeminiModel = chooseBestGeminiModel;
 window.validateGeminiApiKeyFormat = validateGeminiApiKeyFormat;
 window.fetchGeminiSemanticAnalysis = fetchGeminiSemanticAnalysis;
 window.fetchGeminiPromptAnalysis = fetchGeminiPromptAnalysis;
@@ -914,6 +912,5 @@ window.analyzeWorkspacePrompt = analyzeWorkspacePrompt;
 window.openPiaModal = openPiaModal;
 window.closePiaModal = closePiaModal;
 window.getApiKey = getApiKey;
-window._validateAndShowStatus = _validateAndShowStatus;
 
 console.log("[GeminiAnalyzer] Module loaded. All Gemini functions available.");

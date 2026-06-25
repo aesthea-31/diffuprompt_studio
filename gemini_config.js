@@ -3,8 +3,8 @@
 export const geminiConfig = {
     apiKey: "NEXT_PUBLIC_GEMINI_API_KEY",
     models: {
-        workspace: "gemini-3.5-flash",
-        deepAnalysis: "gemini-3.1-pro"
+        workspace: "gemini-2.5-flash-lite",
+        deepAnalysis: "gemini-2.5-flash"
     }
 };
 
